@@ -51,7 +51,10 @@ soit = lexeme $ SLet <$ lchar '|' <*> ident <* lchar '='
   <*> expr <* lchar '.' <*> subexpr
 
 lam :: Parsec String st SourceTerm
-lam = lexeme $ SLam <$ lexeme (oneOf "\\!") <*> ident <* lchar '.' <*> subexpr
+lam = lexeme $ lexeme (oneOf "\\!") *> sublam
+
+sublam :: Parsec String st SourceTerm
+sublam = lexeme $ (lchar '.' *> subexpr) <|> SLam <$> ident <*> sublam
 
 sort :: Parsec String st SourceTerm
 sort = lexeme $ try (SSort <$ char '*' <*> (read <$> many1 digit)) <|> (SSort 0 <$ char '*') <|> (SSort 1 <$ char '?')
