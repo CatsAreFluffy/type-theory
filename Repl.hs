@@ -17,7 +17,7 @@ demoteEither (Left a) = fail $ show a
 
 repl :: [String] -> [Normal] -> IO ()
 repl names values = do
-  code <- getLine
+  code <- putStr "> " >> getLine
   sl <- demoteEither $ parse line "<interactive>" code
   case sl of
     ExprLine st -> replExpr names values st
