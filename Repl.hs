@@ -3,6 +3,7 @@ module Repl where
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except
 import Data.Void
+import Erase
 import NbE
 import Parser
 import System.IO (hFlush, stdout)
@@ -65,4 +66,10 @@ processTerm names values st = do
   let term = eval (eraseSynthed tt) env
   lift $ putStr "Normal type: " >> print (normalizeTypeValue env typ)
   lift $ putStr "Normal term: " >> print (normalizeValue env typ term)
+  let printBLC = do {
+    untyp <- interpretEither $ eraseTypedValue typ term (length env);
+    lift $ putStrLn $ "BLC: " ++ toBLC (etaReduce untyp);
+  }
+  catchE printBLC (\e -> lift $ putStrLn $ "BLC failed: " ++ e)
   return $ Normal typ term
+  
