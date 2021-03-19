@@ -2,6 +2,7 @@ module Repl where
 
 import NbE
 import Parser
+import System.IO (hFlush, stdout)
 import Term
 import Text.Parsec
 import Typechecker
@@ -17,7 +18,9 @@ demoteEither (Left a) = fail $ show a
 
 repl :: [String] -> [Normal] -> IO ()
 repl names values = do
-  code <- putStr "> " >> getLine
+  putStr "> "
+  hFlush stdout
+  code <- getLine
   sl <- demoteEither $ parse line "<interactive>" code
   case sl of
     ExprLine st -> replExpr names values st
