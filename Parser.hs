@@ -69,16 +69,23 @@ data CodeLine =
 line :: Parsec String st CodeLine
 line = (try (DefLine <$> ident <* lchar '=') <*> expr) <|> (ExprLine <$> expr)
 
-indexifyC :: [String] -> SourceTerm -> Maybe CheckedTerm
+lookupVar :: String -> [String] -> Either String Int
+lookupVar s ss = case elemIndex s ss of
+  Just n -> Right n
+  Nothing -> Left $ "Cannot find var " ++ s
+
+indexifyC :: [String] -> SourceTerm -> Either String CheckedTerm
 indexifyC ss (SPi s t x) = TPi <$> indexifyC ss t <*> indexifyC (s:ss) x
 indexifyC ss (SSort n) = return $ TSort n
 indexifyC ss (SLam s x) = TLam <$> indexifyC (s:ss) x
 indexifyC ss (SLet s x y) = TLetC <$> indexifyS ss x <*> indexifyC (s:ss) y
 indexifyC ss x = Synthed <$> indexifyS ss x
 
-indexifyS :: [String] -> SourceTerm -> Maybe SynthedTerm
-indexifyS ss (SVar s) = TVar <$> elemIndex s ss
+indexifyS :: [String] -> SourceTerm -> Either String SynthedTerm
+indexifyS ss (SVar s) = TVar <$> lookupVar s ss
 indexifyS ss (SApp x y) = TApp <$> (indexifyS ss x) <*> (indexifyC ss y)
 indexifyS ss (SLet s x y) = TLetS <$> indexifyS ss x <*> indexifyS (s:ss) y
 indexifyS ss (STyped x t) = (:::) <$> indexifyC ss x <*> indexifyC ss t
-indexifyS _ _ = Nothing
+-- since this is what you usually want anyway
+indexifyS ss (SSort n) = return $ TSort n ::: TSort (n + 1)
+indexifyS _ x = Left $ "Can't synth for " ++ show x

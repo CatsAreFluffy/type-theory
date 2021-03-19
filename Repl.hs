@@ -11,13 +11,13 @@ import Text.Parsec
 import Typechecker
 import TypedTerm
 
-demoteMaybe :: Maybe a -> ExceptT String IO a
-demoteMaybe (Just a) = return a
-demoteMaybe Nothing = throwE "Maybe fail"
+interpretMaybe :: Maybe a -> ExceptT String IO a
+interpretMaybe (Just a) = return a
+interpretMaybe Nothing = throwE "Maybe fail"
 
-demoteEither :: Show a => Either a b -> ExceptT String IO b
-demoteEither (Right b) = return b
-demoteEither (Left a) = throwE $ show a
+interpretEither :: Either String b -> ExceptT String IO b
+interpretEither (Right b) = return b
+interpretEither (Left a) = throwE a
 
 repl :: [String] -> [Normal] -> ExceptT Void IO ()
 repl names values = do
@@ -57,9 +57,9 @@ replLine names values s st = do
 processTerm :: [String] -> [Normal] -> SourceTerm -> ExceptT String IO Normal
 processTerm names values st = do
   lift $ putStr "Parsed: " >> print st
-  tt <- demoteMaybe $ indexifyS names st
+  tt <- interpretEither $ indexifyS names st
   lift $ putStr "Indexed: " >> print tt
-  typ <- demoteMaybe $ synth values tt
+  typ <- interpretEither $ synth values tt
   lift $ putStr "Type: " >> print typ
   let env = toEnv values
   let term = eval (eraseSynthed tt) env
