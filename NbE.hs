@@ -68,9 +68,16 @@ evalContext [] = []
 evalContext (x:xs) = (Reflect (eval x vs) (NVar $ length xs)) : vs
   where vs = evalContext xs
 
+normalizeTypeValue :: Env -> Value -> Term
+normalizeTypeValue ctx t = quoteType t (length ctx)
+
 normalizeType :: [Term] -> Term -> Term
-normalizeType ctx t = quoteType (eval t $ evalContext ctx) (length ctx)
+normalizeType ctx t = normalizeTypeValue sctx (eval t sctx)
+  where sctx = evalContext ctx
+
+normalizeValue :: Env -> Value -> Value -> Term
+normalizeValue ctx t x = quoteTypedValue t x (length ctx)
 
 normalize :: [Term] -> Term -> Term -> Term
-normalize ctx t x = quoteTypedValue (eval t sctx) (eval x sctx) (length ctx)
+normalize ctx t x = normalizeValue sctx (eval t sctx) (eval x sctx)
   where sctx = evalContext ctx
