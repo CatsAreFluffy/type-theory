@@ -2,6 +2,7 @@ module Main where
 
 import NbE
 import Parser
+import Term
 import Text.Parsec
 import Typechecker
 import TypedTerm
@@ -18,13 +19,13 @@ repl :: IO ()
 repl = do
   code <- getLine
   st <- demoteEither $ parse expr "<interactive>" code
-  print st
+  putStr "Parsed: " >> print st
   tt <- demoteMaybe $ indexifyS [] st
-  print tt
+  putStr "Indexed: " >> print tt
   typ <- demoteMaybe $ synth [] tt
-  print typ
-  print (normalizeTypeValue [] typ)
-  print (normalizeValue [] typ $ eval (eraseSynthed tt) [])
+  putStr "Type: " >> print typ
+  putStr "Normal type: " >> print (normalizeTypeValue [] typ)
+  putStr "Normal term: " >> print (normalizeValue [] typ $ eval (eraseSynthed tt) [])
   repl
 
 main :: IO ()

@@ -21,33 +21,43 @@ lchar :: Char -> Parsec String st Char
 lchar = lexeme . char
 
 ident :: Parsec String st String
-ident = lexeme $ many1 alphaNum
+ident = lexeme $ many1 (alphaNum <|> char '_')
 
 expr :: Parsec String st SourceTerm
-expr = lexeme $ chainl1 factor (return SApp)
+expr = do
+  x <- subexpr
+  (lchar ':' *> (STyped x <$> subexpr)) <|> return x
+
+subexpr :: Parsec String st SourceTerm
+subexpr = lexeme $ pi' <|> soit <|> lam <|> superfactor
+
+superfactor :: Parsec String st SourceTerm
+superfactor = do
+  x <- factor
+  (lexeme (string "->") *> (SPi "_" x <$> subexpr)) <|> return x
 
 factor :: Parsec String st SourceTerm
-factor = lexeme $ pi' <|> soit <|> lam <|> sort <|> var <|> typed <|> between (lexeme $ char '(') (lexeme $ char ')') expr
+factor = lexeme $ chainl1 subfactor (return SApp)
+
+subfactor :: Parsec String st SourceTerm
+subfactor = sort <|> var <|> (lchar '(' *> expr <* lchar ')')
 
 pi' :: Parsec String st SourceTerm
-pi' = lexeme $ SPi <$ lchar '^' <*> ident <* lchar ':'
-  <*> expr <* lchar '.' <*> expr
+pi' = lexeme $ SPi <$ lchar '^' <*> (try (ident <* lchar ':') <|> return "_")
+  <*> expr <* lchar '.' <*> subexpr
 
 soit :: Parsec String st SourceTerm
 soit = lexeme $ SLet <$ lchar '|' <*> ident <* lchar '='
-  <*> expr <* lchar '.' <*> expr
+  <*> expr <* lchar '.' <*> subexpr
 
 lam :: Parsec String st SourceTerm
-lam = lexeme $ SLam <$ lexeme (oneOf "\\!") <*> ident <* lchar '.' <*> expr
+lam = lexeme $ SLam <$ lexeme (oneOf "\\!") <*> ident <* lchar '.' <*> subexpr
 
 sort :: Parsec String st SourceTerm
-sort = lexeme $ (SSort 0 <$ char '*') <|> (SSort 1 <$ char '?')
+sort = lexeme $ try (SSort <$ char '*' <*> (read <$> many1 digit)) <|> (SSort 0 <$ char '*') <|> (SSort 1 <$ char '?')
 
 var :: Parsec String st SourceTerm
 var = lexeme $ SVar <$> ident
-
-typed :: Parsec String st SourceTerm
-typed = lexeme $ STyped <$ lchar '[' <*> expr <* lchar ':' <*> expr <* lchar ']'
 
 indexifyC :: [String] -> SourceTerm -> Maybe CheckedTerm
 indexifyC ss (SPi s t x) = TPi <$> indexifyC ss t <*> indexifyC (s:ss) x

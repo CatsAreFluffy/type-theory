@@ -37,6 +37,9 @@ check c (TSort _) _ = False
 check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
   where fresh = Reflect a (NVar $ length c)
 check c (TLam _) _ = False
+check c (TLetC x y) t = fromMaybe False $ do
+  tx <- synth c x
+  return $ check (Normal tx (evalSynthed x c) : c) y t
 
 checkType :: Context -> CheckedTerm -> Bool
 checkType c (Synthed x) = case synth c x of
@@ -58,3 +61,6 @@ synth c (TApp x y) = do
   (VPi a f) <- synth c x
   guard $ check c y a
   return $ inst f [evalChecked y c]
+synth c (TLetS x y) = do
+  tx <- synth c x
+  synth (Normal tx (evalSynthed x c) : c) y
