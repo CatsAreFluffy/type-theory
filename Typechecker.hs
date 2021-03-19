@@ -24,10 +24,10 @@ evalChecked x c = eval (eraseChecked x) (toEnv c)
 check :: Context -> CheckedTerm -> Value -> Either String ()
 check c (Synthed x) t = do
   t' <- synth c x
-  case quoteType t lc == quoteType t' lc of
+  case quoteType t lc >= quoteType t' lc of
     True -> Right ()
     False -> Left $ intercalate " "
-      [show $ quoteType t lc, "!=", show $ quoteType t' lc]
+      [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
   where lc = length c
 -- impredicativity!
 check c (TPi x y) t@(VSort 0) = checkType c x >>

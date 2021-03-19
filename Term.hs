@@ -10,6 +10,10 @@ data Term =
   | Substed Subst Term
   deriving (Show, Eq)
 
+instance Ord Term where
+  Sort n <= Sort m = n <= m
+  x <= y = x == y
+
 data Subst =
   IdS
   | CompS Subst Subst
