@@ -59,6 +59,13 @@ sort = lexeme $ try (SSort <$ char '*' <*> (read <$> many1 digit)) <|> (SSort 0 
 var :: Parsec String st SourceTerm
 var = lexeme $ SVar <$> ident
 
+data CodeLine =
+  ExprLine SourceTerm
+  | DefLine String SourceTerm
+
+line :: Parsec String st CodeLine
+line = (try (DefLine <$> ident <* lchar '=') <*> expr) <|> (ExprLine <$> expr)
+
 indexifyC :: [String] -> SourceTerm -> Maybe CheckedTerm
 indexifyC ss (SPi s t x) = TPi <$> indexifyC ss t <*> indexifyC (s:ss) x
 indexifyC ss (SSort n) = return $ TSort n
