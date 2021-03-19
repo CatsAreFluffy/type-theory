@@ -10,10 +10,6 @@ data Term =
   | Substed Subst Term
   deriving (Show, Eq)
 
-instance Ord Term where
-  Sort n <= Sort m = n <= m
-  x <= y = x == y
-
 data Subst =
   IdS
   | CompS Subst Subst
@@ -58,3 +54,7 @@ substTerm (IdS) v@(Var _) = v
 substTerm (WeakenS n) (Var n') = Var $ n' + n
 substTerm (ExtendS s x) (Var 0) = x
 substTerm (ExtendS s x) (Var n) = substTerm s (Var $ n - 1)
+
+subtype :: Term -> Term -> Bool
+subtype (Sort n) (Sort m) = n <= m
+subtype x y = x == y
