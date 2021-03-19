@@ -22,6 +22,17 @@
   (major1) == 4 && (major2) == 14 && (minor) <= 1)
 #endif /* MIN_VERSION_base */
 
+/* package parsec-3.1.14.0 */
+#ifndef VERSION_parsec
+#define VERSION_parsec "3.1.14.0"
+#endif /* VERSION_parsec */
+#ifndef MIN_VERSION_parsec
+#define MIN_VERSION_parsec(major1,major2,minor) (\
+  (major1) <  3 || \
+  (major1) == 3 && (major2) <  1 || \
+  (major1) == 3 && (major2) == 1 && (minor) <= 14)
+#endif /* MIN_VERSION_parsec */
+
 /* tool alex-3.2.1 */
 #ifndef TOOL_VERSION_alex
 #define TOOL_VERSION_alex "3.2.1"
