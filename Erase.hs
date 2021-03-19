@@ -9,14 +9,25 @@ data UntypedTerm =
   | UApp UntypedTerm UntypedTerm
   deriving Show
 
+endsInSort :: Value -> Either String Bool
+endsInSort (VPi (VSort k) f) | k > 0 = Left $ "Erasing pi over large sort " ++ show k
+endsInSort (VPi a f) = endsInSort $ inst f [Reflect a (NVar 1000)]
+endsInSort (VSort _) = Right True
+endsInSort (Reflect t _) = Right False
+
+endsInSortN :: Neutral -> Either String Bool
+endsInSortN (NVar k) = Right False
+endsInSortN (NApp x y) = endsInSortN x
+
 eraseTypedValue :: Value -> Value -> Int -> Either String UntypedTerm
-eraseTypedValue (VPi (VSort 0) f) x n =
-  eraseTypedValue (inst f [fresh]) (vApp x fresh) n
-  where fresh = Reflect (VSort 0) (NVar undefined)
-eraseTypedValue (VPi (VSort k) f) x n = Left $ "Erasing pi over large sort " ++ show k
-eraseTypedValue (VPi a f) x n = ULam <$>
-  eraseTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
-  where fresh = Reflect a (NVar n)
+eraseTypedValue (VPi a f) x n = do
+  end <- endsInSort a
+  case end of
+    True -> eraseTypedValue (inst f [irrel]) (vApp x irrel) n
+    False -> ULam <$> eraseTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
+    where
+      irrel = Reflect a (NVar 10000)
+      fresh = Reflect a (NVar n)
 eraseTypedValue (VSort k) t n = Left "Erasing a sort"
 eraseTypedValue (Reflect _ _) (Reflect _ e) n = eraseNeutral e n
 
@@ -25,8 +36,11 @@ eraseNormal (Normal t x) = eraseTypedValue t x
 
 eraseNeutral :: Neutral -> Int -> Either String UntypedTerm
 eraseNeutral (NVar k) n = return $ UVar $ n - (k + 1)
-eraseNeutral (NApp x (Normal (VSort _) _)) n = eraseNeutral x n
-eraseNeutral (NApp x y) n = UApp <$> (eraseNeutral x n) <*> (eraseNormal y n)
+eraseNeutral (NApp x (Normal y z)) n = do
+  end <- endsInSort y
+  case end of
+    True -> eraseNeutral x n
+    False -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
 
 deleteVar :: UntypedTerm -> Int -> Maybe UntypedTerm
 deleteVar (UVar n) m
@@ -49,6 +63,4 @@ toBLC (ULam x) = "00" ++ toBLC x
 toBLC (UApp x y) = "01" ++ toBLC x ++ toBLC y
 
 -- toBLC :: UntypedTerm -> String
--- toBLC (UVar n) = "V" ++ show n
--- toBLC (ULam x) = "L" ++ toBLC x
--- toBLC (UApp x y) = "A" ++ toBLC x ++ toBLC y
+-- toBLC = show
