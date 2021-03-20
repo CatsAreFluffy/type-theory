@@ -33,16 +33,6 @@ check c (Synthed x) t = do
     False -> Left $ intercalate " "
       [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
   where lc = length c
--- impredicativity!
-check c (TPi x y) t@(VSort 0) = checkType c x >>
-  check (addVar (evalChecked x c) c) y t
-check c (TPi x y) t@(VSort _) = check c x t >>
-  check (addVar (evalChecked x c) c) y t
-check c (TPi x y) t = Left $ show t ++ " isn't a sort"
-check c (TSort n) t@(VSort m)
-  | n < m = Right ()
-  | otherwise = Left $ "Sort " ++ show n ++ " isn't in sort " ++ show m
-check c (TSort n) _ = Left $ "Sort " ++ show n ++ " only inhabits sorts"
 check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
   where fresh = Reflect a (NVar $ length c)
 check c (TLam x) _ = Left $ "Lambda " ++ show x ++ " only inhabits pis"
@@ -57,10 +47,11 @@ checkType c (Synthed x) = do
   case t of
     VSort _ -> Right ()
     x -> Left $ show x ++ " isn't a sort"
-checkType c (TPi x y) = checkType c x >>
-  checkType (addVar (evalChecked x c) c) y
-checkType c (TSort n) = Right ()
 checkType c (TLam x) = Left $ show "Lambda " ++ show x ++ " isn't a type"
+
+openSort :: Value -> Either String Int
+openSort (VSort n) = return n
+openSort x = Left $ show x ++ " isn't a sort"
 
 synth :: Context -> SynthedTerm -> Either String Value
 -- synth a b | trace ("synth\n" ++ show a ++ '\n':show b) False = undefined
@@ -69,7 +60,16 @@ synth c (x ::: t) = do
   let t' = evalChecked t c
   check c x t'
   return t'
-synth c (TVar k) = Right $ nType $ c !! k
+synth c (TPi x y) = do
+  tx <- synth c x
+  sx <- openSort tx
+  sy <- openSort =<< synth (addVar (evalSynthed x c) c) y
+  return $ VSort $ case sy of
+    -- impredicativity!
+    0 -> 0
+    _ -> max sx sy
+synth x (TSort n) = return $ VSort $ n + 1
+synth c (TVar k) = return $ nType $ c !! k
 synth c (TApp x y) = do
   t <- synth c x
   case t of

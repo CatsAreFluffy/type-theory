@@ -75,17 +75,16 @@ lookupVar s ss = case elemIndex s ss of
   Nothing -> Left $ "Cannot find var " ++ s ++ " in " ++ show ss
 
 indexifyC :: [String] -> SourceTerm -> Either String CheckedTerm
-indexifyC ss (SPi s t x) = TPi <$> indexifyC ss t <*> indexifyC (s:ss) x
-indexifyC ss (SSort n) = return $ TSort n
 indexifyC ss (SLam s x) = TLam <$> indexifyC (s:ss) x
 indexifyC ss (SLet s x y) = TLetC <$> indexifyS ss x <*> indexifyC (s:ss) y
 indexifyC ss x = Synthed <$> indexifyS ss x
 
 indexifyS :: [String] -> SourceTerm -> Either String SynthedTerm
 indexifyS ss (SVar s) = TVar <$> lookupVar s ss
+indexifyS ss (SPi s t x) = TPi <$> indexifyS ss t <*> indexifyS (s:ss) x
+indexifyS ss (SSort n) = return $ TSort n
 indexifyS ss (SApp x y) = TApp <$> (indexifyS ss x) <*> (indexifyC ss y)
 indexifyS ss (SLet s x y) = TLetS <$> indexifyS ss x <*> indexifyS (s:ss) y
 indexifyS ss (STyped x t) = (:::) <$> indexifyC ss x <*> indexifyC ss t
 -- since this is what you usually want anyway
-indexifyS ss (SSort n) = return $ TSort n ::: TSort (n + 1)
 indexifyS _ x = Left $ "Can't synth for " ++ show x
