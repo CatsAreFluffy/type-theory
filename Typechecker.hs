@@ -76,7 +76,7 @@ synth c (TApp x y) = do
     VPi a f -> do
       check c y a
       return $ inst f [evalChecked y c]
-    x -> Left $ show x ++ " doesn't have a pi type"
+    _ -> Left $ show x ++ " is of type " ++ show t ++", which isn't a pi"
 synth c (TLetS x y) = do
   tx <- synth c x
   synth (Normal tx (evalSynthed x c) : c) y
