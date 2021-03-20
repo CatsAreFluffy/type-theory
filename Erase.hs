@@ -9,22 +9,26 @@ data UntypedTerm =
   | UApp UntypedTerm UntypedTerm
   deriving Show
 
-endsInSort :: Value -> Either String Bool
-endsInSort (VPi (VSort k) f) | k > 0 = Left $ "Erasing pi over large sort " ++ show k
-endsInSort (VPi a f) = endsInSort $ inst f [Reflect a (NVar 1000)]
-endsInSort (VSort _) = Right True
-endsInSort (Reflect t _) = Right False
+finalSort :: Value -> Either String (Maybe Int)
+finalSort (VPi a f) = do
+  s <- finalSort a
+  case s of
+    Just k | k > 0 -> Left $ "Erasing pi over large sort " ++ show k
+    _ -> finalSort $ inst f [Reflect a (NVar 1000)]
+finalSort (VSort k) = Right $ Just k
+finalSort (Reflect t _) = Right Nothing
 
-endsInSortN :: Neutral -> Either String Bool
-endsInSortN (NVar k) = Right False
-endsInSortN (NApp x y) = endsInSortN x
+finalSortN :: Neutral -> Either String (Maybe Int)
+finalSortN (NVar k) = Right Nothing
+finalSortN (NApp x y) = finalSortN x
 
 eraseTypedValue :: Value -> Value -> Int -> Either String UntypedTerm
 eraseTypedValue (VPi a f) x n = do
-  end <- endsInSort a
+  end <- finalSort a
   case end of
-    True -> eraseTypedValue (inst f [irrel]) (vApp x irrel) n
-    False -> ULam <$> eraseTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
+    Just 0 -> eraseTypedValue (inst f [irrel]) (vApp x irrel) n
+    Just k -> Left $ "Erasing pi over large sort " ++ show k
+    Nothing -> ULam <$> eraseTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
     where
       irrel = Reflect a (NVar 10000)
       fresh = Reflect a (NVar n)
@@ -37,10 +41,11 @@ eraseNormal (Normal t x) = eraseTypedValue t x
 eraseNeutral :: Neutral -> Int -> Either String UntypedTerm
 eraseNeutral (NVar k) n = return $ UVar $ n - (k + 1)
 eraseNeutral (NApp x (Normal y z)) n = do
-  end <- endsInSort y
+  end <- finalSort y
   case end of
-    True -> eraseNeutral x n
-    False -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
+    Just 0 -> eraseNeutral x n
+    Just k -> Left $ "Erasing pi over large sort " ++ show k
+    Nothing -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
 
 deleteVar :: UntypedTerm -> Int -> Maybe UntypedTerm
 deleteVar (UVar n) m
