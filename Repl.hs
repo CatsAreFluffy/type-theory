@@ -61,7 +61,6 @@ processTerm names values st = do
   tt <- interpretEither $ indexifyS names st
   lift $ putStr "Indexed: " >> print tt
   typ <- interpretEither $ synth values tt
-  lift $ putStr "Type: " >> print typ
   let env = toEnv values
   let term = eval (eraseSynthed tt) env
   lift $ putStr "Normal type: " >> print (normalizeTypeValue env typ)
