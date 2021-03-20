@@ -2,7 +2,6 @@ module Repl where
 
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Except
-import Data.Void
 import Erase
 import NbE
 import Parser
@@ -20,7 +19,7 @@ interpretEither :: Either String b -> ExceptT String IO b
 interpretEither (Right b) = return b
 interpretEither (Left a) = throwE a
 
-repl :: [String] -> [Normal] -> ExceptT Void IO ()
+repl :: [String] -> [Normal] -> ExceptT a IO b
 repl names values = do
   sl <- untilItWorks $ do
     lift $ putStr "> " >> hFlush stdout
@@ -32,28 +31,28 @@ repl names values = do
     ExprLine st -> replIfError $ replExpr names values st
     DefLine s st -> replIfError $ replLine names values s st
   where
-    handleError :: String -> ExceptT Void IO ()
+    handleError :: String -> ExceptT a IO b
     handleError s = lift (putStrLn "Error:" >> putStrLn s) >> repl names values
-    replIfError :: ExceptT String IO () -> ExceptT Void IO ()
+    replIfError :: ExceptT String IO b -> ExceptT a IO b
     replIfError e = catchE e handleError
 
-untilItWorks :: ExceptT String IO a -> ExceptT Void IO a
+untilItWorks :: ExceptT String IO b -> ExceptT a IO b
 untilItWorks x = do
   r <- lift $ runExceptT x
   case r of
     Right a -> return a
     Left e -> lift (putStrLn "Error:" >> putStrLn e) >> untilItWorks x
 
-replExpr :: [String] -> [Normal] -> SourceTerm -> ExceptT String IO ()
+replExpr :: [String] -> [Normal] -> SourceTerm -> ExceptT String IO b
 replExpr names values st = do
   processTerm names values st
-  catchE (repl names values) absurd
+  repl names values
 
-replLine :: [String] -> [Normal] -> String -> SourceTerm -> ExceptT String IO ()
+replLine :: [String] -> [Normal] -> String -> SourceTerm -> ExceptT String IO b
 replLine names values s st = do
   n <- processTerm names values st
   lift $ putStrLn $ s ++ " is defined"
-  catchE (repl (s:names) (n:values)) absurd
+  repl (s:names) (n:values)
 
 processTerm :: [String] -> [Normal] -> SourceTerm -> ExceptT String IO Normal
 processTerm names values st = do
