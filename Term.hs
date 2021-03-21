@@ -62,7 +62,3 @@ substTerm (IdS) v@(Var _) = v
 substTerm (WeakenS n) (Var n') = Var $ n' + n
 substTerm (ExtendS s x) (Var 0) = x
 substTerm (ExtendS s x) (Var n) = substTerm s (Var $ n - 1)
-
-subtype :: Term -> Term -> Bool
-subtype (Sort k) (Sort l) | l < LevelAfterW = k <= l
-subtype x y = x == y

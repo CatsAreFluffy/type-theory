@@ -81,3 +81,7 @@ normalizeValue ctx t x = quoteTypedValue t x (length ctx)
 normalize :: [Term] -> Term -> Term -> Term
 normalize ctx t x = normalizeValue sctx (eval t sctx) (eval x sctx)
   where sctx = evalContext ctx
+
+subtype :: Env -> Value -> Value -> Bool
+subtype ctx (VSort k) (VSort l) | l < LevelAfterW = k <= l
+subtype ctx x y = normalizeTypeValue ctx x == normalizeTypeValue ctx y
