@@ -48,6 +48,9 @@ checkType c (Synthed x) = do
     VSort _ -> Right ()
     x -> Left $ show x ++ " isn't a sort"
 checkType c (TLam x) = Left $ show "Lambda " ++ show x ++ " isn't a type"
+checkType c (TLetC x y) = do
+  tx <- synth c x
+  checkType (Normal tx (evalSynthed x c) : c) y
 
 openSort :: Value -> Either String Int
 openSort (VSort n) = return n
