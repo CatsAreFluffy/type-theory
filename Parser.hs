@@ -1,6 +1,7 @@
 module Parser where
 
 import Data.List (elemIndex)
+import Term (Level(LevelN, LevelW, LevelAfterW))
 import TypedTerm
 import Text.Parsec
 
@@ -9,7 +10,7 @@ data SourceTerm =
   | SApp SourceTerm SourceTerm
   | SVar String
   | SPi String SourceTerm SourceTerm
-  | SSort Int
+  | SSort Level
   | SLet String SourceTerm SourceTerm
   | STyped SourceTerm SourceTerm
   deriving Show
@@ -57,7 +58,12 @@ sublam :: Parsec String st SourceTerm
 sublam = lexeme $ (lchar '.' *> subexpr) <|> SLam <$> ident <*> sublam
 
 sort :: Parsec String st SourceTerm
-sort = lexeme $ try (SSort <$ char '*' <*> (read <$> many1 digit)) <|> (SSort 0 <$ char '*') <|> (SSort 1 <$ char '?')
+sort = lexeme $
+  try (SSort . LevelN <$ char '*' <*> (read <$> many1 digit)) <|>
+  try (SSort LevelW <$ string "*w") <|>
+  try (SSort LevelAfterW <$ string "*x") <|>
+  (SSort (LevelN 0) <$ char '*') <|>
+  (SSort (LevelN 1) <$ char '?')
 
 var :: Parsec String st SourceTerm
 var = lexeme $ SVar <$> ident
@@ -82,9 +88,8 @@ indexifyC ss x = Synthed <$> indexifyS ss x
 indexifyS :: [String] -> SourceTerm -> Either String SynthedTerm
 indexifyS ss (SVar s) = TVar <$> lookupVar s ss
 indexifyS ss (SPi s t x) = TPi <$> indexifyS ss t <*> indexifyS (s:ss) x
-indexifyS ss (SSort n) = return $ TSort n
+indexifyS ss (SSort k) = return $ TSort k
 indexifyS ss (SApp x y) = TApp <$> (indexifyS ss x) <*> (indexifyC ss y)
 indexifyS ss (SLet s x y) = TLetS <$> indexifyS ss x <*> indexifyS (s:ss) y
 indexifyS ss (STyped x t) = (:::) <$> indexifyC ss x <*> indexifyC ss t
--- since this is what you usually want anyway
 indexifyS _ x = Left $ "Can't synth for " ++ show x

@@ -1,12 +1,17 @@
 module Term where
 
+data Level =
+  LevelN Int
+  | LevelW
+  | LevelAfterW
+  deriving (Show, Eq, Ord)
+
 data Term =
   Lam Term
---  | TypedLam Term Term
   | App Term Term
   | Var Int
   | Pi Term Term
-  | Sort Int
+  | Sort Level
   | Substed Subst Term
   deriving (Show, Eq)
 
@@ -20,11 +25,14 @@ data Subst =
 weaken1 :: Subst
 weaken1 = WeakenS 1
 
+sortN :: Int -> Term
+sortN = Sort . LevelN
+
 star :: Term
-star = Sort 0
+star = sortN 0
 
 box :: Term
-box = Sort 1
+box = sortN 1
 
 fun :: Term -> Term -> Term
 fun a b = Pi a $ Substed weaken1 b
@@ -38,7 +46,7 @@ bubbleSubsts (Lam x) = Lam (bubbleSubsts x)
 bubbleSubsts (App x y) = App (bubbleSubsts x) (bubbleSubsts y)
 bubbleSubsts (Var n) = Var n
 bubbleSubsts (Pi x y) = Pi (bubbleSubsts x) (bubbleSubsts y)
-bubbleSubsts (Sort n) = Sort n
+bubbleSubsts (Sort k) = Sort k
 bubbleSubsts (Substed s x) = substTerm s (bubbleSubsts x)
 
 substTerm :: Subst -> Term -> Term
@@ -47,7 +55,7 @@ substTerm s (Lam x) = Lam $ substTerm (delaySubst s) x
 --     TypedLam (substTerm s x) $ substTerm (delaySubst s) y
 substTerm s (App x y) = App (substTerm s x) (substTerm s y)
 substTerm s (Pi x y) = Pi (substTerm s x) (substTerm (delaySubst s) y)
-substTerm s (Sort n) = Sort n
+substTerm s (Sort k) = Sort k
 substTerm s (Substed s' x) = Substed (CompS s s') x
 substTerm (CompS s s') v@(Var _) = substTerm s $ substTerm s' v
 substTerm (IdS) v@(Var _) = v
@@ -56,5 +64,5 @@ substTerm (ExtendS s x) (Var 0) = x
 substTerm (ExtendS s x) (Var n) = substTerm s (Var $ n - 1)
 
 subtype :: Term -> Term -> Bool
-subtype (Sort n) (Sort m) = n <= m
+subtype (Sort k) (Sort l) | l < LevelAfterW = k <= l
 subtype x y = x == y

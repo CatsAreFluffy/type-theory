@@ -5,7 +5,7 @@ import Term
 data Value =
   VLam Closure
   | VPi Value Closure
-  | VSort Int
+  | VSort Level
   | Reflect Value Neutral
   deriving Show
 
@@ -27,7 +27,7 @@ eval (Lam x) e = VLam $ Closure x e
 eval (App x y) e = vApp (eval x e) (eval y e)
 eval (Var n) e = e !! n
 eval (Pi x y) e = VPi (eval x e) (Closure y e)
-eval (Sort n) _ = VSort n
+eval (Sort k) _ = VSort k
 eval (Substed s x) e = eval x (substEnv s e)
 
 inst :: Closure -> [Value] -> Value
@@ -47,7 +47,7 @@ quoteTypedValue :: Value -> Value -> Int -> Term
 quoteTypedValue (VPi a f) x n = Lam $
   quoteTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
   where fresh = Reflect a (NVar n)
-quoteTypedValue (VSort k) t n = quoteType t n
+quoteTypedValue (VSort _) t n = quoteType t n
 quoteTypedValue (Reflect _ _) (Reflect _ e) n = quoteNeutral e n
 
 quoteNormal :: Normal -> Int -> Term

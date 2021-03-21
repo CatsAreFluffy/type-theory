@@ -9,16 +9,16 @@ data UntypedTerm =
   | UApp UntypedTerm UntypedTerm
   deriving Show
 
-finalSort :: Value -> Either String (Maybe Int)
+finalSort :: Value -> Either String (Maybe Level)
 finalSort (VPi a f) = do
   s <- finalSort a
   case s of
-    Just k | k > 0 -> Left $ "Erasing pi over large sort " ++ show k
+    Just k | k > LevelN 0 -> Left $ "Erasing pi over large sort " ++ show s
     _ -> finalSort $ inst f [Reflect a (NVar 1000)]
 finalSort (VSort k) = Right $ Just k
 finalSort (Reflect t _) = Right Nothing
 
-finalSortN :: Neutral -> Either String (Maybe Int)
+finalSortN :: Neutral -> Either String (Maybe Level)
 finalSortN (NVar k) = Right Nothing
 finalSortN (NApp x y) = finalSortN x
 
@@ -26,7 +26,7 @@ eraseTypedValue :: Value -> Value -> Int -> Either String UntypedTerm
 eraseTypedValue (VPi a f) x n = do
   end <- finalSort a
   case end of
-    Just 0 -> eraseTypedValue (inst f [irrel]) (vApp x irrel) n
+    Just (LevelN 0) -> eraseTypedValue (inst f [irrel]) (vApp x irrel) n
     Just k -> Left $ "Erasing pi over large sort " ++ show k
     Nothing -> ULam <$> eraseTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
     where
@@ -43,7 +43,7 @@ eraseNeutral (NVar k) n = return $ UVar $ n - (k + 1)
 eraseNeutral (NApp x (Normal y z)) n = do
   end <- finalSort y
   case end of
-    Just 0 -> eraseNeutral x n
+    Just (LevelN 0) -> eraseNeutral x n
     Just k -> Left $ "Erasing pi over large sort " ++ show k
     Nothing -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
 

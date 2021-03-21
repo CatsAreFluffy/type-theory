@@ -52,8 +52,8 @@ checkType c (TLetC x y) = do
   tx <- synth c x
   checkType (Normal tx (evalSynthed x c) : c) y
 
-openSort :: Value -> Either String Int
-openSort (VSort n) = return n
+openSort :: Value -> Either String Level
+openSort (VSort k) = return k
 openSort x = Left $ show x ++ " isn't a sort"
 
 synth :: Context -> SynthedTerm -> Either String Value
@@ -69,9 +69,11 @@ synth c (TPi x y) = do
   sy <- openSort =<< synth (addVar (evalSynthed x c) c) y
   return $ VSort $ case sy of
     -- impredicativity!
-    0 -> 0
+    LevelN 0 -> LevelN 0
     _ -> max sx sy
-synth x (TSort n) = return $ VSort $ n + 1
+synth x (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
+synth x (TSort LevelW) = return $ VSort LevelAfterW
+synth x (TSort LevelAfterW) = Left $ "*x has no type"
 synth c (TVar k) = return $ nType $ c !! k
 synth c (TApp x y) = do
   t <- synth c x
