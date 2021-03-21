@@ -28,7 +28,7 @@ check :: Context -> CheckedTerm -> Value -> Either String ()
 -- check a b c | trace ("check\n" ++ show a ++ '\n':show b ++ '\n':show c) False = undefined
 check c (Synthed x) t = do
   t' <- synth c x
-  case subtype (toEnv c) t' t of
+  case subtype t' t lc of
     True -> Right ()
     False -> Left $ intercalate " "
       [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
