@@ -11,6 +11,8 @@ data CheckedTerm =
 data SynthedTerm =
   CheckedTerm ::: CheckedTerm
   | TPi SynthedTerm SynthedTerm
+  | TBottom
+  | TTop
   | TSort Level
   | TVar Int
   | TApp SynthedTerm CheckedTerm
@@ -37,6 +39,8 @@ eraseChecked (TLetC x y) = Substed (ExtendS IdS (eraseSynthed x)) (eraseChecked 
 eraseSynthed :: SynthedTerm -> Term
 eraseSynthed (x ::: _) = eraseChecked x
 eraseSynthed (TPi x y) = Pi (eraseSynthed x) (eraseSynthed y)
+eraseSynthed (TBottom) = Bottom
+eraseSynthed (TTop) = Top
 eraseSynthed (TSort k) = Sort k
 eraseSynthed (TVar n) = Var n
 eraseSynthed (TApp x y) = App (eraseSynthed x) (eraseChecked y)

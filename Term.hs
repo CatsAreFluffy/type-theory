@@ -11,6 +11,8 @@ data Term =
   | App Term Term
   | Var Int
   | Pi Term Term
+  | Bottom
+  | Top
   | Sort Level
   | Substed Subst Term
   deriving (Show, Eq)
@@ -42,19 +44,20 @@ delaySubst s = ExtendS (CompS s weaken1) (Var 0)
 
 bubbleSubsts :: Term -> Term
 bubbleSubsts (Lam x) = Lam (bubbleSubsts x)
--- bubbleSubsts (TypedLam x y) = TypedLam (bubbleSubsts x) (bubbleSubsts y)
 bubbleSubsts (App x y) = App (bubbleSubsts x) (bubbleSubsts y)
 bubbleSubsts (Var n) = Var n
 bubbleSubsts (Pi x y) = Pi (bubbleSubsts x) (bubbleSubsts y)
+bubbleSubsts (Top) = Top
+bubbleSubsts (Bottom) = Bottom
 bubbleSubsts (Sort k) = Sort k
 bubbleSubsts (Substed s x) = substTerm s (bubbleSubsts x)
 
 substTerm :: Subst -> Term -> Term
 substTerm s (Lam x) = Lam $ substTerm (delaySubst s) x
--- substTerm s (TypedLam x y) =
---     TypedLam (substTerm s x) $ substTerm (delaySubst s) y
 substTerm s (App x y) = App (substTerm s x) (substTerm s y)
 substTerm s (Pi x y) = Pi (substTerm s x) (substTerm (delaySubst s) y)
+substTerm s (Top) = Top
+substTerm s (Bottom) = Bottom
 substTerm s (Sort k) = Sort k
 substTerm s (Substed s' x) = Substed (CompS s s') x
 substTerm (CompS s s') v@(Var _) = substTerm s $ substTerm s' v

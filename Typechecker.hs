@@ -33,6 +33,8 @@ check c (Synthed x) t = do
     False -> Left $ intercalate " "
       [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
   where lc = length c
+-- :(
+check c (TLam x) VTop = Left $ "Lambda " ++ show x ++ " might inhabit Top, but I'm not sure"
 check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
   where fresh = Reflect a (NVar $ length c)
 check c (TLam x) _ = Left $ "Lambda " ++ show x ++ " only inhabits pis"
@@ -71,6 +73,9 @@ synth c (TPi x y) = do
     -- impredicativity!
     LevelN 0 -> LevelN 0
     _ -> max sx sy
+synth x (TBottom) = return $ vStar
+-- it's contractible so this is probably fine
+synth x (TTop) = return $ vStar
 synth x (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
 synth x (TSort LevelW) = return $ VSort LevelAfterW
 synth x (TSort LevelAfterW) = Left $ "*x has no type"

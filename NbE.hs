@@ -5,9 +5,17 @@ import Term
 data Value =
   VLam Closure
   | VPi Value Closure
+  | VBottom
+  | VTop
   | VSort Level
   | Reflect Value Neutral
   deriving Show
+
+vStar :: Value
+vStar = VSort $ LevelN 0
+
+vBox :: Value
+vBox = VSort $ LevelN 1
 
 data Neutral =
   NVar Int
@@ -27,6 +35,8 @@ eval (Lam x) e = VLam $ Closure x e
 eval (App x y) e = vApp (eval x e) (eval y e)
 eval (Var n) e = e !! n
 eval (Pi x y) e = VPi (eval x e) (Closure y e)
+eval (Bottom) e = VBottom
+eval (Top) e = VTop
 eval (Sort k) _ = VSort k
 eval (Substed s x) e = eval x (substEnv s e)
 
@@ -47,6 +57,9 @@ quoteTypedValue :: Value -> Value -> Int -> Term
 quoteTypedValue (VPi a f) x n = Lam $
   quoteTypedValue (inst f [fresh]) (vApp x fresh) (n + 1)
   where fresh = Reflect a (NVar n)
+quoteTypedValue (VBottom) (Reflect _ e) n = quoteNeutral e n
+-- Top is proof-irrelevant
+quoteTypedValue (VTop) _ n = star
 quoteTypedValue (VSort _) t n = quoteType t n
 quoteTypedValue (Reflect _ _) (Reflect _ e) n = quoteNeutral e n
 
@@ -60,6 +73,8 @@ quoteNeutral (NApp x y) n = App (quoteNeutral x n) (quoteNormal y n)
 quoteType :: Value -> Int -> Term
 quoteType (VPi a f) n = Pi (quoteType a n) (quoteType (inst f [fresh]) (n + 1))
   where fresh = Reflect a (NVar n)
+quoteType (VBottom) n = Bottom
+quoteType (VTop) n = Top
 quoteType (VSort k) n = Sort k
 quoteType (Reflect _ v) n = quoteNeutral v n
 
@@ -83,6 +98,8 @@ normalize ctx t x = normalizeValue sctx (eval t sctx) (eval x sctx)
   where sctx = evalContext ctx
 
 subtype :: Value -> Value -> Int -> Bool
+subtype VBottom _ n = True
+subtype _ VTop n = True
 subtype (VSort k) (VSort l) n | l < LevelAfterW = k <= l
 subtype (VPi a b) (VPi c d) n = subtype c a n &&
   subtype (inst b [fresh]) (inst d [fresh]) (n + 1)

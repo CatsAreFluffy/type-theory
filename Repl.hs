@@ -19,6 +19,12 @@ interpretEither :: Either String b -> ExceptT String IO b
 interpretEither (Right b) = return b
 interpretEither (Left a) = throwE a
 
+baseNames :: [String]
+baseNames = ["Top", "Bottom"]
+
+baseValues :: [Normal]
+baseValues = [Normal vStar VTop, Normal vStar VBottom]
+
 repl :: [String] -> [Normal] -> ExceptT a IO b
 repl names values = do
   sl <- untilItWorks $ do

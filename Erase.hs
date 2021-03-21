@@ -9,17 +9,22 @@ data UntypedTerm =
   | UApp UntypedTerm UntypedTerm
   deriving Show
 
+uIdentity :: UntypedTerm
+uIdentity = ULam $ UVar 0
+
 finalSort :: Value -> Either String (Maybe Level)
 finalSort (VPi a f) = do
   s <- finalSort a
   case s of
     Just k | k > LevelN 0 -> Left $ "Erasing pi over large sort " ++ show s
     _ -> finalSort $ inst f [Reflect a (NVar 1000)]
-finalSort (VSort k) = Right $ Just k
-finalSort (Reflect t _) = Right Nothing
+finalSort (VBottom) = return $ Just $ LevelN 0
+finalSort (VTop) = return $ Just $ LevelN 0
+finalSort (VSort k) = return $ Just k
+finalSort (Reflect t _) = return Nothing
 
 finalSortN :: Neutral -> Either String (Maybe Level)
-finalSortN (NVar k) = Right Nothing
+finalSortN (NVar k) = return Nothing
 finalSortN (NApp x y) = finalSortN x
 
 eraseTypedValue :: Value -> Value -> Int -> Either String UntypedTerm
@@ -32,6 +37,9 @@ eraseTypedValue (VPi a f) x n = do
     where
       irrel = Reflect a (NVar 10000)
       fresh = Reflect a (NVar n)
+eraseTypedValue (VBottom) t n = return $ uIdentity
+-- I'm not entirely sure about this one
+eraseTypedValue (VTop) t n = return $ uIdentity
 eraseTypedValue (VSort k) t n = Left "Erasing a sort"
 eraseTypedValue (Reflect _ _) (Reflect _ e) n = eraseNeutral e n
 
