@@ -34,7 +34,7 @@ check c (Synthed x) t = do
       [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
   where lc = length c
 -- :(
-check c (TLam x) VTop = Left $ "Lambda " ++ show x ++ " might inhabit Top, but I'm not sure"
+check c (TLam x) VTop = check (addVar VBottom c) x VTop
 check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
   where fresh = Reflect a (NVar $ length c)
 check c (TLam x) _ = Left $ "Lambda " ++ show x ++ " only inhabits pis"
