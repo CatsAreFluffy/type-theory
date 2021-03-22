@@ -77,7 +77,7 @@ line = (try (DefLine <$> ident <* lchar '=') <*> expr) <|> (ExprLine <$> expr)
 
 lookupVar :: String -> [String] -> Either String Int
 lookupVar s ss = case elemIndex s ss of
-  Just n -> Right n
+  Just n -> return n
   Nothing -> Left $ "Cannot find var " ++ s ++ " in " ++ show ss
 
 indexifyC :: [String] -> SourceTerm -> Either String CheckedTerm

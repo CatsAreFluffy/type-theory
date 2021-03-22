@@ -76,4 +76,3 @@ processTerm names values st = do
   }
   catchE printBLC (\e -> lift $ putStrLn $ "BLC failed: " ++ e)
   return $ Normal typ term
-  

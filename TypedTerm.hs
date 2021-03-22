@@ -25,11 +25,11 @@ tSortN = TSort . LevelN
 tSortW :: SynthedTerm
 tSortW = TSort LevelW
 
-tstar :: SynthedTerm
-tstar = tSortN 0
+tStar :: SynthedTerm
+tStar = tSortN 0
 
-tbox :: SynthedTerm
-tbox = tSortN 1
+tBox :: SynthedTerm
+tBox = tSortN 1
 
 eraseChecked :: CheckedTerm -> Term
 eraseChecked (Synthed x) = eraseSynthed x
@@ -45,4 +45,3 @@ eraseSynthed (TSort k) = Sort k
 eraseSynthed (TVar n) = Var n
 eraseSynthed (TApp x y) = App (eraseSynthed x) (eraseChecked y)
 eraseSynthed (TLetS x y) = Substed (ExtendS IdS (eraseSynthed x)) (eraseSynthed y)
--- eraseSynthed (TTypedLam _ x) = Lam (eraseSynthed x)

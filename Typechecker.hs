@@ -29,7 +29,7 @@ check :: Context -> CheckedTerm -> Value -> Either String ()
 check c (Synthed x) t = do
   t' <- synth c x
   case subtype t' t lc of
-    True -> Right ()
+    True -> return ()
     False -> Left $ intercalate " "
       [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
   where lc = length c
@@ -47,7 +47,8 @@ checkType :: Context -> CheckedTerm -> Either String ()
 checkType c (Synthed x) = do
   t <- synth c x
   case t of
-    VSort _ -> Right ()
+    VSort _ -> return ()
+    VBottom -> return ()
     x -> Left $ show x ++ " isn't a sort"
 checkType c (TLam x) = Left $ show "Lambda " ++ show x ++ " isn't a type"
 checkType c (TLetC x y) = do
@@ -56,6 +57,7 @@ checkType c (TLetC x y) = do
 
 openSort :: Value -> Either String Level
 openSort (VSort k) = return k
+openSort (VBottom) = return $ LevelN 0
 openSort x = Left $ show x ++ " isn't a sort"
 
 synth :: Context -> SynthedTerm -> Either String Value
@@ -86,6 +88,10 @@ synth c (TApp x y) = do
     VPi a f -> do
       check c y a
       return $ inst f [evalChecked y c]
+    -- The smallest function type is Top->Bottom
+    VBottom -> do
+      check c y VTop
+      return VBottom
     _ -> Left $ show x ++ " is of type " ++ show t ++", which isn't a pi"
 synth c (TLetS x y) = do
   tx <- synth c x
