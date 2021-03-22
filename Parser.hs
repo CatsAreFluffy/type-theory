@@ -9,6 +9,8 @@ data SourceTerm =
   SLam String SourceTerm
   | SApp SourceTerm SourceTerm
   | SVar String
+  | SNatLit Int
+  | SNatRec String SourceTerm SourceTerm String String SourceTerm SourceTerm
   | SPi String SourceTerm SourceTerm
   | SSort Level
   | SLet String SourceTerm SourceTerm
@@ -41,7 +43,7 @@ factor :: Parsec String st SourceTerm
 factor = lexeme $ chainl1 subfactor (return SApp)
 
 subfactor :: Parsec String st SourceTerm
-subfactor = sort <|> var <|> (lchar '(' *> expr <* lchar ')')
+subfactor = sort <|> nat <|> natrec <|> var <|> (lchar '(' *> expr <* lchar ')')
 
 pi' :: Parsec String st SourceTerm
 pi' = lexeme $ SPi <$ lchar '^' <*> (try (ident <* lchar ':') <|> return "_")
@@ -65,6 +67,18 @@ sort = lexeme $
   (SSort (LevelN 0) <$ char '*') <|>
   (SSort (LevelN 1) <$ char '?')
 
+nat :: Parsec String st SourceTerm
+nat = lexeme $ try $ (SNatLit . read) <$> many1 digit
+
+natrec :: Parsec String st SourceTerm
+natrec = lexeme $
+  SNatRec <$ try (lexeme $ string "natrec") <* lchar '{'
+  <*> (try (ident <* lchar '.') <|> return "_") <*> expr <* lchar ';'
+  <*> expr <* lchar ';'
+  <*> ident <*> ident <* lchar '.' <*> expr <* lchar ';'
+  <*> expr <* optional (lchar ';')
+  <* lchar '}'
+
 var :: Parsec String st SourceTerm
 var = lexeme $ SVar <$> ident
 
@@ -87,6 +101,14 @@ indexifyC ss x = Synthed <$> indexifyS ss x
 
 indexifyS :: [String] -> SourceTerm -> Either String SynthedTerm
 indexifyS ss (SVar s) = TVar <$> lookupVar s ss
+indexifyS ss (SNatLit n) =
+  TApp <$> (indexifyS ss $ SVar "fromNat") <*> return (fromNat n)
+  where
+    fromNat 0 = Synthed $ TZero
+    fromNat n = Synthed $ TSucc $ fromNat $ n - 1
+indexifyS ss (SNatRec n1 t z n2 p s n) =
+  TNatRec <$> indexifyC (n1:ss) t <*> indexifyC ss z
+  <*> indexifyC (p:n2:ss) s <*> indexifyC ss n
 indexifyS ss (SPi s t x) = TPi <$> indexifyS ss t <*> indexifyS (s:ss) x
 indexifyS ss (SSort k) = return $ TSort k
 indexifyS ss (SApp x y) = TApp <$> (indexifyS ss x) <*> (indexifyC ss y)

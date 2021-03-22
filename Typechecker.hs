@@ -2,6 +2,7 @@ module Typechecker where
 
 import Control.Monad (guard)
 import Data.List (intercalate)
+import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
 import Debug.Trace (trace)
 import NbE
@@ -21,6 +22,9 @@ evalSynthed x c = eval (eraseSynthed x) (toEnv c)
 
 evalChecked :: CheckedTerm -> Context -> Value
 evalChecked x c = eval (eraseChecked x) (toEnv c)
+
+closureChecked :: CheckedTerm -> Context -> Closure
+closureChecked x c = Closure (eraseChecked x) (toEnv c)
 
 echo s x = trace ("echo " ++ s ++ " " ++ show x) x
 
@@ -66,6 +70,17 @@ synth c (x ::: t) = do
   let t' = evalChecked t c
   check c x t'
   return t'
+synth c (TZero) = return $ VNat
+synth c (TSucc x) = check c x VNat $> VNat
+synth c (TNatRec t x y n) = do
+  check c n VNat
+  checkType (addVar VNat c) t
+  let t' = closureChecked t c
+  let tSuccVar = (inst t' [VSucc $ natVarN])
+  check c x (inst t' [VZero])
+  check (addVar tSuccVar $ addVar VNat c) y (inst t' [natVarN])
+  return $ inst t' [evalChecked n c]
+  where natVarN = Reflect VNat $ NVar $ length c
 synth c (TPi x y) = do
   tx <- synth c x
   sx <- openSort tx
@@ -77,6 +92,7 @@ synth c (TPi x y) = do
 synth x (TBottom) = return $ vStar
 -- it's contractible so this is probably fine
 synth x (TTop) = return $ vStar
+synth x (TNat) = return $ vStar
 synth x (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
 synth x (TSort LevelW) = return $ VSort LevelAfterW
 synth x (TSort LevelAfterW) = Left $ "*x has no type"

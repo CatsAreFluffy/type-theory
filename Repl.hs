@@ -20,10 +20,17 @@ interpretEither (Right b) = return b
 interpretEither (Left a) = throwE a
 
 baseNames :: [String]
-baseNames = ["Top", "Bottom"]
+baseNames = ["Top", "Bottom", "Nat", "zero", "succ", "fromNat"]
 
 baseValues :: [Normal]
-baseValues = [Normal vStar VTop, Normal vStar VBottom]
+baseValues = [
+  Normal vStar VTop,
+  Normal vStar VBottom,
+  Normal vStar VNat,
+  Normal VNat VZero,
+  Normal (VPi VNat (Closure Nat [])) (VLam (Closure (Succ $ Var 0) [])),
+  Normal (VPi VNat (Closure Nat [])) (VLam (Closure (Var 0) []))
+  ]
 
 repl :: [String] -> [Normal] -> ExceptT a IO b
 repl names values = do

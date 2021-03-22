@@ -20,12 +20,14 @@ finalSort (VPi a f) = do
     _ -> finalSort $ inst f [Reflect a (NVar 1000)]
 finalSort (VBottom) = return $ Just $ LevelN 0
 finalSort (VTop) = return $ Just $ LevelN 0
+finalSort (VNat) = return $ Just $ LevelN 0
 finalSort (VSort k) = return $ Just k
 finalSort (Reflect t _) = return Nothing
 
 finalSortN :: Neutral -> Either String (Maybe Level)
 finalSortN (NVar k) = return Nothing
 finalSortN (NApp x y) = finalSortN x
+finalSortN (NNatRec n t x y) = finalSort $ inst t [Reflect VNat (NVar 1000)]
 
 eraseTypedValue :: Value -> Value -> Int -> Either String UntypedTerm
 eraseTypedValue (VPi a f) x n = do
@@ -37,9 +39,10 @@ eraseTypedValue (VPi a f) x n = do
     where
       irrel = Reflect a (NVar 10000)
       fresh = Reflect a (NVar n)
-eraseTypedValue (VBottom) t n = return $ uIdentity
+eraseTypedValue (VBottom) t n = return $ UVar 0
 -- I'm not entirely sure about this one
-eraseTypedValue (VTop) t n = return $ uIdentity
+eraseTypedValue (VTop) t n = return $ UVar 0
+eraseTypedValue (VNat) t n = Left "Erasing Nats is unimplemented"
 eraseTypedValue (VSort k) t n = Left "Erasing a sort"
 eraseTypedValue (Reflect _ _) (Reflect _ e) n = eraseNeutral e n
 
@@ -54,6 +57,7 @@ eraseNeutral (NApp x (Normal y z)) n = do
     Just (LevelN 0) -> eraseNeutral x n
     Just k -> Left $ "Erasing pi over large sort " ++ show k
     Nothing -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
+eraseNeutral (NNatRec _ _ _ _) n = Left "Erasing NatRecs is unimplemented"
 
 deleteVar :: UntypedTerm -> Int -> Maybe UntypedTerm
 deleteVar (UVar n) m
