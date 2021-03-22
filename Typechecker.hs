@@ -33,7 +33,6 @@ check c (Synthed x) t = do
     False -> Left $ intercalate " "
       [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
   where lc = length c
--- :(
 check c (TLam x) VTop = check (addVar VBottom c) x VTop
 check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
   where fresh = Reflect a (NVar $ length c)
