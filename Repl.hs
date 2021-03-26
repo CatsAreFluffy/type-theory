@@ -74,8 +74,10 @@ processTerm names values st = do
   lift $ putStr "Indexed: " >> print tt
   typ <- interpretEither $ synth values tt
   let env = toEnv values
-  let term = eval (eraseSynthed tt) env
+  lift $ putStr "Type: " >> print typ
   lift $ putStr "Normal type: " >> print (normalizeTypeValue env typ)
+  let term = eval (eraseSynthed tt) env
+  -- lift $ putStr "Normal value: " >> print term
   lift $ putStr "Normal term: " >> print (normalizeValue env typ term)
   let printBLC = do {
     untyp <- interpretEither $ eraseTypedValue typ term (length env);

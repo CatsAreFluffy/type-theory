@@ -35,12 +35,29 @@ check c (Synthed x) t = do
   case subtype t' t lc of
     True -> return ()
     False -> Left $ intercalate " "
-      [show $ quoteType t lc, "!>=", show $ quoteType t' lc]
+      [show $ quoteType t' lc, "!<=", show $ quoteType t lc]
   where lc = length c
-check c (TLam x) VTop = check (addVar VBottom c) x VTop
-check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
-  where fresh = Reflect a (NVar $ length c)
-check c (TLam x) _ = Left $ "Lambda " ++ show x ++ " only inhabits pis"
+check c (TLam x) t = do
+  (a, f) <- maxPiSubtype (toEnv c) t
+  let fresh = Reflect a (NVar $ length c)
+  check (addVar a c) x (inst f [fresh])
+-- check c v@(TLam _) (VAddProof t _ _) = check c v t
+-- check c (TLam x) VTop = check (addVar VBottom c) x VTop
+-- check c (TLam x) (VPi a f) = check (addVar a c) x (inst f [fresh])
+--   where fresh = Reflect a (NVar $ length c)
+-- check c (TLam x) _ = Left $ "Lambda " ++ show x ++ " only inhabits pis"
+check c v@(TAddProof _ _ _) (VAddProof t _ _) = check c v t
+-- check c (TAddProof x t p) VTop = error "Addproof top"
+check c (TAddProof x t p) tt@(VRefine tx tp) = do
+  check c x tx
+  let t' = evalChecked t c
+  check c p t'
+  let x' = evalChecked x c
+  case subtype t' (inst tp [x']) (length c) of
+    True -> return ()
+    False -> check c x tt
+check c (TAddProof x pt p) t = check c p t' >> check c x t
+  where t' = evalChecked pt c
 check c (TLetC x y) t = do
   tx <- synth c x
   check (Normal tx (evalSynthed x c) : c) y t
@@ -54,11 +71,29 @@ checkType c (Synthed x) = do
     VBottom -> return ()
     x -> Left $ show x ++ " isn't a sort"
 checkType c (TLam x) = Left $ show "Lambda " ++ show x ++ " isn't a type"
+checkType c (TAddProof x t p) = do
+  checkType c x
+  let t' = evalChecked t c
+  check c p t'
 checkType c (TLetC x y) = do
   tx <- synth c x
   checkType (Normal tx (evalSynthed x c) : c) y
 
+checkProofIn :: Context -> Value -> Value -> Value -> Either String ()
+-- checkProofIn _ _ _ t | trace ("t" ++ show t) False = undefined
+checkProofIn c tp x (VAddProof t _ _) = checkProofIn c tp x t
+checkProofIn c tp x (VBottom) = return ()
+checkProofIn c tp x (VRefine t tp') = do
+  let c' = addVar t c
+  let fresh = Reflect t $ NVar $ length c
+  case subtype tp (inst tp' [x]) (length c') of
+    True -> return ()
+    False -> checkProofIn c tp x t
+checkProofIn c tp _ _ = Left $ "Couldn't find a proof of " ++ show tp
+
 openSort :: Value -> Either String Level
+openSort (VAddProof x _ _) = openSort x
+openSort (VRefine t _) = openSort t
 openSort (VSort k) = return k
 openSort (VBottom) = return $ LevelN 0
 openSort x = Left $ show x ++ " isn't a sort"
@@ -70,6 +105,7 @@ synth c (x ::: t) = do
   let t' = evalChecked t c
   check c x t'
   return t'
+synth c (TAbort x) = check c x VBottom $> VBottom
 synth c (TZero) = return $ VNat
 synth c (TSucc x) = check c x VNat $> VNat
 synth c (TNatRec t x y n) = do
@@ -81,6 +117,32 @@ synth c (TNatRec t x y n) = do
   check (addVar tSuccVar $ addVar VNat c) y (inst t' [natVarN])
   return $ inst t' [evalChecked n c]
   where natVarN = Reflect VNat $ NVar $ length c
+-- useproof{*;*{Top:*}:?[p.*];t.?[p.*];x p.x}
+-- \x.useproof{Top[x.Bottom];Bottom;x;t.Bottom;t p.p} : Top[x.Bottom]->Bottom
+synth c (TUseProof tx tp x ty y) = do
+  checkType c tx
+  let tx' = evalChecked tx c
+  check c x tx'
+  let x' = evalChecked x c
+  -- checkType (addVar (evalSynthed x c) c) p
+  checkType c tp
+  let tp' = evalChecked tp c
+  checkProofIn c tp' x' tx'
+  checkType (addVar tx' c) ty
+  -- let x' = Normal tx $ evalSynthed x c
+  let ty' = closureChecked ty c
+  let fresh = Reflect tx' $ NVar $ length c
+  let tyf = inst ty' [fresh]
+  check (addVar tp' $ addVar tx' c) y tyf
+  let p1 = Reflect tp' $ NVar $ length c + 1
+  let p2 = Reflect tp' $ NVar $ length c + 2
+  let y' = closureChecked y c
+  let y1 = inst y' [p1,fresh]
+  let y2 = inst y' [p2,fresh]
+  case valueEq tyf y1 y2 (length c + 3) of
+    True -> return ()
+    False -> Left $ "Coherence failure in " ++ show (TUseProof tx tp x ty y)
+  return $ inst ty' [evalChecked x c]
 synth c (TPi x y) = do
   tx <- synth c x
   sx <- openSort tx
@@ -89,25 +151,25 @@ synth c (TPi x y) = do
     -- impredicativity!
     LevelN 0 -> LevelN 0
     _ -> max sx sy
-synth x (TBottom) = return $ vStar
+synth c (TBottom) = return vStar
 -- it's contractible so this is probably fine
-synth x (TTop) = return $ vStar
-synth x (TNat) = return $ vStar
-synth x (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
-synth x (TSort LevelW) = return $ VSort LevelAfterW
-synth x (TSort LevelAfterW) = Left $ "*x has no type"
+synth c (TTop) = return vStar
+synth c (TNat) = return vStar
+synth c (TRefine t p) = do
+  tt <- synth c t
+  openSort tt
+  tp <- synth (addVar (evalSynthed t c) c) p
+  openSort tp
+  return tt
+synth c (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
+synth c (TSort LevelW) = return $ VSort LevelAfterW
+synth c (TSort LevelAfterW) = Left $ "*x has no type"
 synth c (TVar k) = return $ nType $ c !! k
 synth c (TApp x y) = do
-  t <- synth c x
-  case t of
-    VPi a f -> do
-      check c y a
-      return $ inst f [evalChecked y c]
-    -- The smallest function type is Top->Bottom
-    VBottom -> do
-      check c y VTop
-      return VBottom
-    _ -> Left $ show x ++ " is of type " ++ show t ++", which isn't a pi"
+  t <- synth c x 
+  (a, f) <- minPiSupertype (toEnv c) t
+  check c y a
+  return $ inst f [evalChecked y c]
 synth c (TLetS x y) = do
   tx <- synth c x
   synth (Normal tx (evalSynthed x c) : c) y

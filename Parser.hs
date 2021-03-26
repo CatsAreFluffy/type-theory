@@ -1,5 +1,6 @@
 module Parser where
 
+import Control.Applicative ((<**>))
 import Data.List (elemIndex)
 import Term (Level(LevelN, LevelW, LevelAfterW))
 import TypedTerm
@@ -11,7 +12,10 @@ data SourceTerm =
   | SVar String
   | SNatLit Int
   | SNatRec String SourceTerm SourceTerm String String SourceTerm SourceTerm
+  | SAddProof SourceTerm SourceTerm SourceTerm
+  | SUseProof SourceTerm SourceTerm SourceTerm SourceTerm String SourceTerm
   | SPi String SourceTerm SourceTerm
+  | SRefine SourceTerm String SourceTerm
   | SSort Level
   | SLet String SourceTerm SourceTerm
   | STyped SourceTerm SourceTerm
@@ -24,7 +28,8 @@ lchar :: Char -> Parsec String st Char
 lchar = lexeme . char
 
 ident :: Parsec String st String
-ident = lexeme $ many1 (alphaNum <|> char '_')
+ident = lexeme $
+  (:) <$> (alphaNum <|> char '_') <*> many (alphaNum <|> oneOf "_'")
 
 expr :: Parsec String st SourceTerm
 expr = do
@@ -40,10 +45,29 @@ superfactor = do
   (lexeme (string "->") *> (SPi "_" x <$> subexpr)) <|> return x
 
 factor :: Parsec String st SourceTerm
-factor = lexeme $ chainl1 subfactor (return SApp)
+--factor = lexeme $ chainl1 subfactor (return SApp)
+factor = lexeme $ subfactor <**> postfixes
+
+postfixes :: Parsec String st (SourceTerm -> SourceTerm)
+postfixes = (flip (.) <$> postfix <*> postfixes) <|> return id
+
+postfix :: Parsec String st (SourceTerm -> SourceTerm)
+postfix = lexeme $ app <|> addproof <|> refine
+
+app :: Parsec String st (SourceTerm -> SourceTerm)
+app = lexeme $ flip SApp <$> subfactor
+
+addproof :: Parsec String st (SourceTerm -> SourceTerm)
+addproof = lexeme $ (\p t x->SAddProof x t p) <$ lchar '{'
+  <*> subexpr <* lchar ':' <*> expr <* lchar '}'
+
+refine :: Parsec String st (SourceTerm -> SourceTerm)
+refine = lexeme $ (\n p x->SRefine x n p) <$ lchar '['
+  <*> ident <* lchar '.' <*> expr <* lchar ']'
 
 subfactor :: Parsec String st SourceTerm
-subfactor = sort <|> nat <|> natrec <|> var <|> (lchar '(' *> expr <* lchar ')')
+subfactor =
+  sort <|> nat <|> natrec <|> useproof <|> var <|> (lchar '(' *> expr <* lchar ')')
 
 pi' :: Parsec String st SourceTerm
 pi' = lexeme $ SPi <$ lchar '^' <*> (try (ident <* lchar ':') <|> return "_")
@@ -79,6 +103,17 @@ natrec = lexeme $
   <*> expr <* optional (lchar ';')
   <* lchar '}'
 
+useproof :: Parsec String st SourceTerm
+useproof = lexeme $
+  SUseProof <$ try (lexeme $ string "useproof") <* lchar '{'
+  <*> expr <* lchar ';'
+  <*> expr <* lchar ';'
+  <*> expr <* lchar ';'
+  <*> expr <* lchar ';'
+  <*> (try (ident <* lchar '.') <|> return "_")
+    <*> expr <* optional (lchar ';')
+  <* lchar '}'
+
 var :: Parsec String st SourceTerm
 var = lexeme $ SVar <$> ident
 
@@ -96,6 +131,8 @@ lookupVar s ss = case elemIndex s ss of
 
 indexifyC :: [String] -> SourceTerm -> Either String CheckedTerm
 indexifyC ss (SLam s x) = TLam <$> indexifyC (s:ss) x
+indexifyC ss (SAddProof x t p) =
+  TAddProof <$> indexifyC ss x <*> indexifyC ss t <*> indexifyC ss p
 indexifyC ss (SLet s x y) = TLetC <$> indexifyS ss x <*> indexifyC (s:ss) y
 indexifyC ss x = Synthed <$> indexifyS ss x
 
@@ -109,7 +146,13 @@ indexifyS ss (SNatLit n) =
 indexifyS ss (SNatRec n1 t z n2 p s n) =
   TNatRec <$> indexifyC (n1:ss) t <*> indexifyC ss z
   <*> indexifyC (p:n2:ss) s <*> indexifyC ss n
+-- the stubbed-out binders are technically unnecessary,
+-- and I'll remove them soon
+indexifyS ss (SUseProof tx tp x ty n1 y) =
+  TUseProof <$> indexifyC ss tx <*> indexifyC ss tp <*> indexifyC ss x
+  <*> indexifyC ("":ss) ty <*> indexifyC (n1:"":ss) y
 indexifyS ss (SPi s t x) = TPi <$> indexifyS ss t <*> indexifyS (s:ss) x
+indexifyS ss (SRefine x s p) = TRefine <$> indexifyS ss x <*> indexifyS (s:ss) p
 indexifyS ss (SSort k) = return $ TSort k
 indexifyS ss (SApp x y) = TApp <$> (indexifyS ss x) <*> (indexifyC ss y)
 indexifyS ss (SLet s x y) = TLetS <$> indexifyS ss x <*> indexifyS (s:ss) y
