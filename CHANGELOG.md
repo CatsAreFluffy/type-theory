@@ -17,3 +17,7 @@
 * Added proof-annotated types, which allow you to annotate values with definitionally irrelevant proofs. (They probably have another name already.) Construct these types with `A[x.P]` and their terms with `x{p:P}`. `A[x.B]` is a subtype of `A`, and the proof component can be extracted using `useproof{X;P;x;Y;p.y}`, where `X` is the type of the proof-annotated term being analyzed, `P` is the type of the proof to extract, `x` is the proof-annotated term to extract a proof from, `Y` is the return type, and `y` is the output. Note that all outputs of `\p.y p` must be definitionally equal.
 * Bottom is now definitionally proof-irrelevant, so that a function of type `Top[_.Bottom]->Bottom` is definable.
 * Changed erasure of Bottom again, since I don't think using random stuff as Bottoms preserves termination.
+
+## 0.3.0.1 -- 2021-03-26
+* `* : (?{*:?} : *2[_.?])` now typechecks.
+* Change the version in the .cabal file. Oops.

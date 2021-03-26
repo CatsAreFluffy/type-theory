@@ -66,10 +66,7 @@ checkType :: Context -> CheckedTerm -> Either String ()
 -- checkType a b | trace ("checkType\n" ++ show a ++ '\n':show b) False = undefined
 checkType c (Synthed x) = do
   t <- synth c x
-  case t of
-    VSort _ -> return ()
-    VBottom -> return ()
-    x -> Left $ show x ++ " isn't a sort"
+  openSort t >> return ()
 checkType c (TLam x) = Left $ show "Lambda " ++ show x ++ " isn't a type"
 checkType c (TAddProof x t p) = do
   checkType c x
