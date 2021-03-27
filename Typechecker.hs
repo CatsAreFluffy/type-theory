@@ -111,7 +111,7 @@ synth c (TNatRec t x y n) = do
   let t' = closureChecked t c
   let tSuccVar = (inst t' [VSucc $ natVarN])
   check c x (inst t' [VZero])
-  check (addVar tSuccVar $ addVar VNat c) y (inst t' [natVarN])
+  check (addVar tSuccVar $ addVar VNat c) y (inst t' [VSucc $ natVarN])
   return $ inst t' [evalChecked n c]
   where natVarN = Reflect VNat $ NVar $ length c
 -- useproof{*;*{Top:*}:?[p.*];t.?[p.*];x p.x}

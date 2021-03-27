@@ -21,3 +21,6 @@
 ## 0.3.0.1 -- 2021-03-26
 * `* : (?{*:?} : *2[_.?])` now typechecks.
 * Change the version in the .cabal file. Oops.
+
+## 0.3.0.2 -- 2021-03-27
+* `natrec` now expects the correct type in the successor case.
