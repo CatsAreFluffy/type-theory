@@ -24,3 +24,7 @@
 
 ## 0.3.0.2 -- 2021-03-27
 * `natrec` now expects the correct type in the successor case.
+
+## 0.4.0.0 -- 2021-03-28
+* Added dependent pairs. Construct these types with `&x:A.B` and their terms with `pair{a,b}`. The projections are `left{p}` and `right{p}`.
+* Fixed a potential issue with Pi subtyping.

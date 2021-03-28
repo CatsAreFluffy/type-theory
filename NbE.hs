@@ -8,12 +8,14 @@ data Value =
   | VZero
   | VSucc Value
   | VAddProof Value Value Value
+  | VPair Value Value
   | VPi Value Closure
   | VRelevantBottom
   | VBottom
   | VTop
   | VNat
   | VRefine Value Closure
+  | VSigma Value Closure
   | VSort Level
   | Reflect Value Neutral
   deriving Show
@@ -29,6 +31,8 @@ data Neutral =
   | NApp Neutral Normal
   | NNatRec Neutral Closure Value Closure
   | NUseProof' Neutral Value Value Closure Closure
+  | NProj1 Neutral
+  | NProj2 Neutral
   deriving Show
 
 type Env = [Value]
@@ -56,6 +60,19 @@ minPiSupertype c (VBottom) = return (VTop, Closure Bottom c)
 minPiSupertype c (VRefine t _) = minPiSupertype c t
 minPiSupertype _ t = Left $ show t ++ " isn't a subtype of a pi"
 
+maxSigSubtype :: Env -> Value -> Either String (Value, Closure)
+maxSigSubtype c (VAddProof t _ _) = maxPiSubtype c t
+maxSigSubtype c (VSigma a f) = return (a, f)
+maxSigSubtype c (VTop) = return (VTop, Closure Top c)
+maxSigSubtype _ t = Left $ show t ++ " isn't a supertype of a sigma"
+
+minSigSupertype :: Env -> Value -> Either String (Value, Closure)
+minSigSupertype c (VAddProof t _ _) = minSigSupertype c t
+minSigSupertype c (VSigma a f) = return (a, f)
+minSigSupertype c (VBottom) = return (VBottom, Closure Bottom c)
+minSigSupertype c (VRefine t _) = minSigSupertype c t
+minSigSupertype _ t = Left $ show t ++ " isn't a subtype of a sigma"
+
 eval :: Term -> Env -> Value
 eval (Lam x) e = VLam $ Closure x e
 eval (App x y) e = vApp (eval x e) (eval y e)
@@ -67,11 +84,15 @@ eval (NatRec t x y n) e = vNatRec (Closure t e) (eval x e) (Closure y e) (eval n
 eval (AddProof x t (Irrel p)) e = VAddProof (eval x e) (eval t e) (eval p e)
 eval (UseProof tx tp x ty y) e =
   vUseProof (eval tx e) (eval tp e) (eval x e) (Closure ty e) (Closure y e) (length e)
+eval (Pair a b) e = VPair (eval a e) (eval b e)
+eval (Proj1 p) e = fst $ vProjs (eval p e)
+eval (Proj2 p) e = snd $ vProjs (eval p e)
 eval (Pi x y) e = VPi (eval x e) (Closure y e)
 eval (Bottom) _ = VBottom
 eval (Top) _ = VTop
 eval (Nat) _ = VNat
 eval (Refine x p) e = vRefine (eval x e) (Closure p e)
+eval (Sigma x y) e = VSigma (eval x e) (Closure y e)
 eval (Sort k) _ = VSort k
 eval (Substed s x) e = eval x (substEnv s e)
 
@@ -115,6 +136,17 @@ vUseProof tx tp v@(Reflect _ e) ty y _ =
   where t' = inst ty [v]
 vUseProof t x p y n q = error $ show p ++ show x ++ show t ++ show y ++ show n
 
+vProjs :: Value -> (Value, Value)
+vProjs (VAbort x) = (VAbort x, VAbort x)
+vProjs (VAddProof p _ _) = vProjs p
+vProjs (VPair a b) = (a, b)
+-- again, biting of ass at an as-yet-unknown time
+vProjs (Reflect t p) | Right (a, f) <- minSigSupertype [] t
+  = (p1 a, p2 a f)
+  where
+    p1 a = Reflect a $ NProj1 p
+    p2 a f = Reflect (inst f [p1 a]) $ NProj2 p
+
 -- I really don't like this
 vRefine :: Value -> Closure -> Value
 vRefine VBottom _ = VBottom
@@ -150,6 +182,11 @@ quoteTypedValue tt@(VRefine t r) (VAddProof x tp p) n
     AddProof (quoteTypedValue t x n) (quoteType tp n)
     $ Irrel $ quoteTypedValue (inst r [x]) p (n + 1)
   | otherwise = quoteTypedValue tt x n
+quoteTypedValue (VSigma a f) x n =
+  Pair (quoteTypedValue a p1 n) (quoteTypedValue f' p2 n)
+  where
+    (p1, p2) = vProjs x
+    f' = inst f [p1]
 quoteTypedValue (VSort _) t n = quoteType t n
 quoteTypedValue (Reflect _ _) (VAbort x) n = quoteAbort x n
 quoteTypedValue t@(Reflect _ _) (VAddProof x _ _) n = quoteTypedValue t x n
@@ -184,6 +221,8 @@ quoteNeutral (NUseProof' e tx tp ty y) n =
     --p' = inst p [Reflect x $ NVar n]
     ty' = inst ty [Reflect tx $ NVar n]
     y' = inst y [Reflect tp $ NVar $ n + 1, Reflect tx $ NVar n]
+quoteNeutral (NProj1 e) n = Proj1 $ quoteNeutral e n
+quoteNeutral (NProj2 e) n = Proj2 $ quoteNeutral e n
 
 quoteType :: Value -> Int -> Term
 quoteType (VAbort x) n = quoteAbort x n
@@ -197,6 +236,8 @@ quoteType (VTop) n = Top
 quoteType (VNat) n = Nat
 quoteType (VRefine t p) n = Refine (quoteType t n) (quoteType (inst p [fresh]) (n + 1))
   where fresh = Reflect t (NVar n)
+quoteType (VSigma a f) n = Sigma (quoteType a n) (quoteType (inst f [fresh]) (n + 1))
+  where fresh = Reflect a (NVar n)
 quoteType (VSort k) n = Sort k
 quoteType (Reflect _ v) n = quoteNeutral v n
 
@@ -232,6 +273,9 @@ subtype (VRefine a p) (VRefine b q) n
 subtype (VRefine a x) b n = subtype a b n
 subtype (VSort k) (VSort l) n | l < LevelAfterW = k <= l
 subtype (VPi a b) (VPi c d) n = subtype c a n &&
+  subtype (inst b [fresh]) (inst d [fresh]) (n + 1)
+  where fresh = Reflect c (NVar n)
+subtype (VSigma a b) (VSigma c d) n = subtype a c n &&
   subtype (inst b [fresh]) (inst d [fresh]) (n + 1)
   where fresh = Reflect a (NVar n)
 subtype x y n = valueTypeEq x y n

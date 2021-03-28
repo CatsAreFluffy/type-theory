@@ -58,6 +58,11 @@ check c (TAddProof x t p) tt@(VRefine tx tp) = do
     False -> check c x tt
 check c (TAddProof x pt p) t = check c p t' >> check c x t
   where t' = evalChecked pt c
+check c (TPair x y) t = do
+  (a, f) <- maxSigSubtype (toEnv c) t
+  check c x a
+  let x' = evalChecked x c
+  check (Normal a x':c) y (inst f [x'])
 check c (TLetC x y) t = do
   tx <- synth c x
   check (Normal tx (evalSynthed x c) : c) y t
@@ -72,6 +77,8 @@ checkType c (TAddProof x t p) = do
   checkType c x
   let t' = evalChecked t c
   check c p t'
+checkType c (TPair a b) =
+  Left $ show "Pair " ++ show a ++ ", " ++ show b ++ " isn't a type"
 checkType c (TLetC x y) = do
   tx <- synth c x
   checkType (Normal tx (evalSynthed x c) : c) y
@@ -140,6 +147,14 @@ synth c (TUseProof tx tp x ty y) = do
     True -> return ()
     False -> Left $ "Coherence failure in " ++ show (TUseProof tx tp x ty y)
   return $ inst ty' [evalChecked x c]
+synth c (TProj1 x) = do
+  tx <- synth c x
+  (a, _) <- minSigSupertype (toEnv c) tx
+  return a
+synth c (TProj2 x) = do
+  tx <- synth c x
+  (a, f) <- minSigSupertype (toEnv c) tx
+  return $ inst f [evalSynthed (TProj1 x) c]
 synth c (TPi x y) = do
   tx <- synth c x
   sx <- openSort tx
@@ -158,6 +173,12 @@ synth c (TRefine t p) = do
   tp <- synth (addVar (evalSynthed t c) c) p
   openSort tp
   return tt
+synth c (TSigma x y) = do
+  tx <- synth c x
+  sx <- openSort tx
+  sy <- openSort =<< synth (addVar (evalSynthed x c) c) y
+  -- no impredicativity here
+  return $ VSort $ max sx sy
 synth c (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
 synth c (TSort LevelW) = return $ VSort LevelAfterW
 synth c (TSort LevelAfterW) = Left $ "*x has no type"

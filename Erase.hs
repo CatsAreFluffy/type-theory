@@ -25,6 +25,11 @@ finalSort (VBottom) = return Nothing -- $ Just $ LevelN 0
 finalSort (VTop) = return $ Just $ LevelN 0
 finalSort (VNat) = return $ Just $ LevelN 0
 finalSort (VRefine t _) = finalSort t
+finalSort (VSigma a f) = do
+  s <- finalSort a
+  case s of
+    Just k | k > LevelN 0 -> Left $ "Erasing sigma over large sort " ++ show s
+    _ -> finalSort $ inst f [Reflect a (NVar 1000)]
 finalSort (VSort k) = return $ Just k
 finalSort (Reflect t _) = return Nothing
 
@@ -34,6 +39,9 @@ finalSortN (NApp x y) = finalSortN x
 finalSortN (NNatRec n t x y) = finalSort $ inst t [Reflect VNat $ NVar 1000]
 finalSortN (NUseProof' e tx tp ty y) = finalSort $
   inst ty [Reflect tp $ NVar 1000, Reflect tx $ NVar 1000]
+-- probably not entirely correct but idc
+finalSortN (NProj1 x) = finalSortN x
+finalSortN (NProj2 x) = finalSortN x
 
 eraseTypedValue :: Value -> Value -> Int -> Either String UntypedTerm
 eraseTypedValue (VAddProof t _ _) x n = eraseTypedValue t x n
@@ -57,7 +65,13 @@ eraseTypedValue (VRelevantBottom) (Reflect _ e) n = eraseNeutral e n
 eraseTypedValue (VTop) t n = return $ UVar 0
 eraseTypedValue (VNat) t n = Left "Erasing Nats is unimplemented"
 eraseTypedValue (VRefine t _) x n = eraseTypedValue t x n
+eraseTypedValue (VSigma a f) p n = do
+  let (p1, p2) = vProjs p
+  p1' <- eraseTypedValue a p1 n
+  p2' <- eraseTypedValue (inst f [p1]) p2 n
+  return $ ULam $ UApp (UApp (UVar 0) p1') p2'
 eraseTypedValue (VSort k) t n = Left "Erasing a sort"
+eraseTypedValue t@(Reflect _ _) (VAddProof x _ _) n = eraseTypedValue t x n
 eraseTypedValue (Reflect _ _) (Reflect _ e) n = eraseNeutral e n
 
 eraseNormal :: Normal -> Int -> Either String UntypedTerm
@@ -73,6 +87,12 @@ eraseNeutral (NApp x (Normal y z)) n = do
     Nothing -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
 eraseNeutral (NNatRec _ _ _ _) n = Left "Erasing NatRecs is unimplemented"
 eraseNeutral (NUseProof' e tx tp ty y) n = Left "Erasing UseProofs is unimplemented"
+eraseNeutral (NProj1 e) n = do
+  e' <- eraseNeutral e n
+  return $ UApp e' $ ULam $ ULam $ UVar 1
+eraseNeutral (NProj2 e) n = do
+  e' <- eraseNeutral e n
+  return $ UApp e' $ ULam $ ULam $ UVar 0
 
 deleteVar :: UntypedTerm -> Int -> Maybe UntypedTerm
 deleteVar (UVar n) m

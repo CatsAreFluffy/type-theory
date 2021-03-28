@@ -16,11 +16,15 @@ data Term =
   | NatRec Term Term Term Term
   | AddProof Term Term IrrelTerm
   | UseProof Term Term Term Term Term
+  | Pair Term Term
+  | Proj1 Term
+  | Proj2 Term
   | Pi Term Term
   | Bottom
   | Top
   | Nat
   | Refine Term Term
+  | Sigma Term Term
   | Sort Level
   | Substed Subst Term
   deriving (Show, Eq)
@@ -73,11 +77,15 @@ bubbleSubsts (AddProof x t (Irrel p)) =
 bubbleSubsts (UseProof tx tp x ty y) =
   UseProof (bubbleSubsts tx) (bubbleSubsts tp) (bubbleSubsts x)
   (bubbleSubsts ty) (bubbleSubsts y)
+bubbleSubsts (Pair a b) = Pair (bubbleSubsts a) (bubbleSubsts b)
+bubbleSubsts (Proj1 p) = Proj1 $ bubbleSubsts p
+bubbleSubsts (Proj2 p) = Proj2 $ bubbleSubsts p
 bubbleSubsts (Pi x y) = Pi (bubbleSubsts x) (bubbleSubsts y)
 bubbleSubsts (Top) = Top
 bubbleSubsts (Bottom) = Bottom
 bubbleSubsts (Nat) = Nat
 bubbleSubsts (Refine x p) = Refine (bubbleSubsts x) (bubbleSubsts p)
+bubbleSubsts (Sigma x y) = Sigma (bubbleSubsts x) (bubbleSubsts y)
 bubbleSubsts (Sort k) = Sort k
 bubbleSubsts (Substed s x) = substTerm s (bubbleSubsts x)
 
@@ -98,11 +106,17 @@ substTerm s (UseProof tx tp x ty y) =
   where
     s' = delaySubst s
     s'' = delaySubst s'
-substTerm s (Pi x y) = Pi (substTerm s x) (substTerm (delaySubst s) y)
+substTerm s (Pair a b) = Pair (substTerm s a) (substTerm s b)
+substTerm s (Proj1 p) = Proj1 (substTerm s p)
+substTerm s (Proj2 p) = Proj2 (substTerm s p)
+substTerm s (Pi x y) = Pi (substTerm s x) (substTerm s' y)
+  where s' = delaySubst s
 substTerm s (Top) = Top
 substTerm s (Bottom) = Bottom
 substTerm s (Nat) = Nat
 substTerm s (Refine x p) = Refine (substTerm s x) (substTerm s' p)
+  where s' = delaySubst s
+substTerm s (Sigma x y) = Sigma (substTerm s x) (substTerm s' y)
   where s' = delaySubst s
 substTerm s (Sort k) = Sort k
 substTerm s (Substed s' x) = Substed (CompS s s') x
