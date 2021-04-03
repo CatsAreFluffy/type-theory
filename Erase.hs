@@ -30,6 +30,7 @@ finalSort (VSigma a f) = do
   case s of
     Just k | k > LevelN 0 -> Left $ "Erasing sigma over large sort " ++ show s
     _ -> finalSort $ inst f [Reflect a (NVar 1000)]
+finalSort (VSquash x) = return $ Just $ LevelN 0
 finalSort (VSort k) = return $ Just k
 finalSort (Reflect t _) = return Nothing
 
@@ -37,7 +38,7 @@ finalSortN :: Neutral -> Either String (Maybe Level)
 finalSortN (NVar k) = return Nothing
 finalSortN (NApp x y) = finalSortN x
 finalSortN (NNatRec n t x y) = finalSort $ inst t [Reflect VNat $ NVar 1000]
-finalSortN (NUseProof' e tx tp ty y) = finalSort $
+finalSortN (NUseProof e tx tp ty y) = finalSort $
   inst ty [Reflect tp $ NVar 1000, Reflect tx $ NVar 1000]
 -- probably not entirely correct but idc
 finalSortN (NProj1 x) = finalSortN x
@@ -73,6 +74,7 @@ eraseTypedValue (VSigma a f) p n = do
 eraseTypedValue (VSort k) t n = Left "Erasing a sort"
 eraseTypedValue t@(Reflect _ _) (VAddProof x _ _) n = eraseTypedValue t x n
 eraseTypedValue (Reflect _ _) (Reflect _ e) n = eraseNeutral e n
+eraseTypedValue a b c = Left $ "Something something " ++ show a ++ " " ++ show b ++ " " ++ show c
 
 eraseNormal :: Normal -> Int -> Either String UntypedTerm
 eraseNormal (Normal t x) = eraseTypedValue t x
@@ -86,13 +88,14 @@ eraseNeutral (NApp x (Normal y z)) n = do
     Just k -> Left $ "Erasing pi over large sort " ++ show k
     Nothing -> UApp <$> (eraseNeutral x n) <*> (eraseTypedValue y z n)
 eraseNeutral (NNatRec _ _ _ _) n = Left "Erasing NatRecs is unimplemented"
-eraseNeutral (NUseProof' e tx tp ty y) n = Left "Erasing UseProofs is unimplemented"
+eraseNeutral (NUseProof e tx tp ty y) n = Left "Erasing UseProofs is unimplemented"
 eraseNeutral (NProj1 e) n = do
   e' <- eraseNeutral e n
   return $ UApp e' $ ULam $ ULam $ UVar 1
 eraseNeutral (NProj2 e) n = do
   e' <- eraseNeutral e n
   return $ UApp e' $ ULam $ ULam $ UVar 0
+eraseNeutral (NUseSquash e ty y) n = Left "Erasing UseSquashes is unimplemented"
 
 deleteVar :: UntypedTerm -> Int -> Maybe UntypedTerm
 deleteVar (UVar n) m

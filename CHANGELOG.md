@@ -28,3 +28,11 @@
 ## 0.4.0.0 -- 2021-03-28
 * Added dependent pairs. Construct these types with `&x:A.B` and their terms with `pair{a,b}`. The projections are `left{p}` and `right{p}`.
 * Fixed a potential issue with Pi subtyping.
+
+## 0.5.0.0 -- 2021-04-03
+* Added squash types. Construct these types with `squash`. `squash A` is always a supertype of `A`, so you don't need a constructor. Additionally, `squash` is idempotent and all squashed types are proof-irrelevant. The eliminator is `usesquash{p;Y;p.y}`, where `p` is the squashed value to eliminate, `Y` is the return type, and `y` is the returned value. As with `useproof`, `\p.y` must be constant.
+* Terms of proof-annotated types can be directly constructed using squashed proofs (for example, `*{Nat:squash *} : ?[x.x]`), and the proofs can be directly extracted as elements of squash types using `getproof{P;x}` where `x` is a proof-annotated term and `squash P` is the type of the proof to extract from it.
+* `useproof` is still available, but might be broken and/or removed in the future. I recommend replacing `useproof{X;P;x;Y;p.y}` with `usesquash{getproof{P;x:X};Y;p.y}`, possibly omitting the type annotation on `x`.
+* Handling of `Abort`s in the discriminees of some eliminators was changed. Since `Bottom` is proof-irrelevant, this shouldn't change anything for users.
+* Proof-annotated terms now check that the provided proof type is in fact a type.
+* Cumulativity into `Sort LevelAboveW` (also known as `*x`) is now allowed.

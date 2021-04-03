@@ -56,8 +56,11 @@ check c (TAddProof x t p) tt@(VRefine tx tp) = do
   case subtype t' (inst tp [x']) (length c) of
     True -> return ()
     False -> check c x tt
-check c (TAddProof x pt p) t = check c p t' >> check c x t
-  where t' = evalChecked pt c
+check c (TAddProof x pt p) t = do
+  check c x t
+  checkType c pt
+  let pt' = evalChecked pt c
+  check c p (vSquash pt')
 check c (TPair x y) t = do
   (a, f) <- maxSigSubtype (toEnv c) t
   check c x a
@@ -73,10 +76,11 @@ checkType c (Synthed x) = do
   t <- synth c x
   openSort t >> return ()
 checkType c (TLam x) = Left $ show "Lambda " ++ show x ++ " isn't a type"
-checkType c (TAddProof x t p) = do
+checkType c (TAddProof x pt p) = do
   checkType c x
-  let t' = evalChecked t c
-  check c p t'
+  checkType c pt
+  let pt' = evalChecked pt c
+  check c p (vSquash pt')
 checkType c (TPair a b) =
   Left $ show "Pair " ++ show a ++ ", " ++ show b ++ " isn't a type"
 checkType c (TLetC x y) = do
@@ -155,6 +159,26 @@ synth c (TProj2 x) = do
   tx <- synth c x
   (a, f) <- minSigSupertype (toEnv c) tx
   return $ inst f [evalSynthed (TProj1 x) c]
+synth c (TGetProof tp x) = do
+  checkType c tp
+  let tp' = evalChecked tp c
+  tx <- synth c x
+  let x' = evalSynthed x c
+  checkProofIn c tp' x' tx
+  return $ vSquash tp'
+synth c (TUseSquash p ty y) = do
+  checkType c ty
+  let ty' = evalChecked ty c
+  tsp <- synth c p
+  let tp = vUnSquash tsp
+  let fresh = Reflect tp $ NVar $ length c
+  check (addVar tp c) y ty'
+  let y' = closureChecked y c
+  let fresh2 = Reflect tp $ NVar $ length c + 1
+  case valueEq ty' (inst y' [fresh]) (inst y' [fresh2]) (length c + 2) of
+    True -> return ()
+    False -> Left $ "Coherence failure in " ++ show (TUseSquash p ty y)
+  return ty'
 synth c (TPi x y) = do
   tx <- synth c x
   sx <- openSort tx
@@ -164,7 +188,6 @@ synth c (TPi x y) = do
     LevelN 0 -> LevelN 0
     _ -> max sx sy
 synth c (TBottom) = return vStar
--- it's contractible so this is probably fine
 synth c (TTop) = return vStar
 synth c (TNat) = return vStar
 synth c (TRefine t p) = do
@@ -179,6 +202,10 @@ synth c (TSigma x y) = do
   sy <- openSort =<< synth (addVar (evalSynthed x c) c) y
   -- no impredicativity here
   return $ VSort $ max sx sy
+synth c (TSquash x) = do
+  tx <- synth c x
+  openSort tx
+  return vStar
 synth c (TSort (LevelN n)) = return . VSort . LevelN $ n + 1
 synth c (TSort LevelW) = return $ VSort LevelAfterW
 synth c (TSort LevelAfterW) = Left $ "*x has no type"

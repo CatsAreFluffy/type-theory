@@ -19,12 +19,16 @@ data Term =
   | Pair Term Term
   | Proj1 Term
   | Proj2 Term
+  | Squeeze IrrelTerm
+  | GetProof Term Term
+  | UseSquash Term Term Term
   | Pi Term Term
   | Bottom
   | Top
   | Nat
   | Refine Term Term
   | Sigma Term Term
+  | Squash Term
   | Sort Level
   | Substed Subst Term
   deriving (Show, Eq)
@@ -80,12 +84,17 @@ bubbleSubsts (UseProof tx tp x ty y) =
 bubbleSubsts (Pair a b) = Pair (bubbleSubsts a) (bubbleSubsts b)
 bubbleSubsts (Proj1 p) = Proj1 $ bubbleSubsts p
 bubbleSubsts (Proj2 p) = Proj2 $ bubbleSubsts p
+bubbleSubsts (Squeeze (Irrel p)) = Squeeze $ Irrel $ bubbleSubsts p
+bubbleSubsts (GetProof tp x) = GetProof (bubbleSubsts tp) (bubbleSubsts x)
+bubbleSubsts (UseSquash p ty y) =
+  UseSquash (bubbleSubsts p) (bubbleSubsts ty) (bubbleSubsts y)
 bubbleSubsts (Pi x y) = Pi (bubbleSubsts x) (bubbleSubsts y)
 bubbleSubsts (Top) = Top
 bubbleSubsts (Bottom) = Bottom
 bubbleSubsts (Nat) = Nat
 bubbleSubsts (Refine x p) = Refine (bubbleSubsts x) (bubbleSubsts p)
 bubbleSubsts (Sigma x y) = Sigma (bubbleSubsts x) (bubbleSubsts y)
+bubbleSubsts (Squash x) = Squash $ bubbleSubsts x
 bubbleSubsts (Sort k) = Sort k
 bubbleSubsts (Substed s x) = substTerm s (bubbleSubsts x)
 
@@ -107,8 +116,13 @@ substTerm s (UseProof tx tp x ty y) =
     s' = delaySubst s
     s'' = delaySubst s'
 substTerm s (Pair a b) = Pair (substTerm s a) (substTerm s b)
-substTerm s (Proj1 p) = Proj1 (substTerm s p)
-substTerm s (Proj2 p) = Proj2 (substTerm s p)
+substTerm s (Proj1 p) = Proj1 $ substTerm s p
+substTerm s (Proj2 p) = Proj2 $ substTerm s p
+substTerm s (Squeeze (Irrel p)) = Squeeze $ Irrel $ substTerm s p
+substTerm s (GetProof tp x) = GetProof (substTerm s tp) (substTerm s x)
+substTerm s (UseSquash p ty y) =
+  UseSquash (substTerm s p) (substTerm s ty) (substTerm s' y)
+  where s' = delaySubst s
 substTerm s (Pi x y) = Pi (substTerm s x) (substTerm s' y)
   where s' = delaySubst s
 substTerm s (Top) = Top
@@ -118,6 +132,7 @@ substTerm s (Refine x p) = Refine (substTerm s x) (substTerm s' p)
   where s' = delaySubst s
 substTerm s (Sigma x y) = Sigma (substTerm s x) (substTerm s' y)
   where s' = delaySubst s
+substTerm s (Squash x) = Squash $ substTerm s x
 substTerm s (Sort k) = Sort k
 substTerm s (Substed s' x) = Substed (CompS s s') x
 substTerm (CompS s s') v@(Var _) = substTerm s $ substTerm s' v

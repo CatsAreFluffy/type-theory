@@ -19,12 +19,15 @@ data SynthedTerm =
   | TUseProof CheckedTerm CheckedTerm CheckedTerm CheckedTerm CheckedTerm
   | TProj1 SynthedTerm
   | TProj2 SynthedTerm
+  | TGetProof CheckedTerm SynthedTerm
+  | TUseSquash SynthedTerm CheckedTerm CheckedTerm
   | TPi SynthedTerm SynthedTerm
   | TBottom
   | TTop
   | TNat
   | TRefine SynthedTerm SynthedTerm
   | TSigma SynthedTerm SynthedTerm
+  | TSquash SynthedTerm
   | TSort Level
   | TVar Int
   | TApp SynthedTerm CheckedTerm
@@ -64,12 +67,15 @@ eraseSynthed (TUseProof tx tp x ty y) =
   (eraseChecked ty) (eraseChecked y)
 eraseSynthed (TProj1 p) = Proj1 $ eraseSynthed p
 eraseSynthed (TProj2 p) = Proj2 $ eraseSynthed p
+eraseSynthed (TGetProof tp x) = GetProof (eraseChecked tp) (eraseSynthed x)
+eraseSynthed (TUseSquash p ty y) = UseSquash (eraseSynthed p) (eraseChecked ty) (eraseChecked y)
 eraseSynthed (TPi x y) = Pi (eraseSynthed x) (eraseSynthed y)
 eraseSynthed (TBottom) = Bottom
 eraseSynthed (TTop) = Top
 eraseSynthed (TNat) = Nat
 eraseSynthed (TRefine x p) = Refine (eraseSynthed x) (eraseSynthed p)
 eraseSynthed (TSigma x y) = Sigma (eraseSynthed x) (eraseSynthed y)
+eraseSynthed (TSquash x) = Squash $ eraseSynthed x
 eraseSynthed (TSort k) = Sort k
 eraseSynthed (TVar n) = Var n
 eraseSynthed (TApp x y) = App (eraseSynthed x) (eraseChecked y)

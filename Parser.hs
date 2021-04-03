@@ -17,6 +17,8 @@ data SourceTerm =
   | SPair SourceTerm SourceTerm
   | SProj1 SourceTerm
   | SProj2 SourceTerm
+  | SGetProof SourceTerm SourceTerm
+  | SUseSquash SourceTerm SourceTerm String SourceTerm
   | SPi String SourceTerm SourceTerm
   | SRefine SourceTerm String SourceTerm
   | SSigma String SourceTerm SourceTerm
@@ -74,7 +76,8 @@ refine = lexeme $ (\n p x->SRefine x n p) <$ lchar '['
 subfactor :: Parsec String st SourceTerm
 subfactor =
   sort <|> nat <|> natrec <|> useproof <|> pair
-  <|> proj <|> var <|> (lchar '(' *> expr <* lchar ')')
+  <|> proj <|> getproof <|> usesquash
+  <|> var <|> (lchar '(' *> expr <* lchar ')')
 
 pi' :: Parsec String st SourceTerm
 pi' = lexeme $ SPi <$ lchar '^' <*> (try (ident <* lchar ':') <|> return "_")
@@ -140,6 +143,22 @@ proj = lexeme $
 var :: Parsec String st SourceTerm
 var = lexeme $ SVar <$> ident
 
+getproof :: Parsec String st SourceTerm
+getproof = lexeme $
+  SGetProof <$ lkeyword "getproof" <* lchar '{'
+  <*> expr <* lchar ';'
+  <*> expr <* optional (lchar ';')
+  <* lchar '}'
+
+usesquash :: Parsec String st SourceTerm
+usesquash = lexeme $
+  SUseSquash <$ lkeyword "usesquash" <* lchar '{'
+  <*> expr <* lchar ';'
+  <*> expr <* lchar ';'
+  <*> (try (ident <* lchar '.') <|> return "_")
+    <*> expr <* optional (lchar ';')
+  <* lchar '}'
+
 data CodeLine =
   ExprLine SourceTerm
   | DefLine String SourceTerm
@@ -178,6 +197,9 @@ indexifyS ss (SUseProof tx tp x ty n1 y) =
   <*> indexifyC ("":ss) ty <*> indexifyC (n1:"":ss) y
 indexifyS ss (SProj1 p) = TProj1 <$> indexifyS ss p
 indexifyS ss (SProj2 p) = TProj2 <$> indexifyS ss p
+indexifyS ss (SGetProof tp x) = TGetProof <$> indexifyC ss tp <*> indexifyS ss x
+indexifyS ss (SUseSquash p ty n y) =
+  TUseSquash <$> indexifyS ss p <*> indexifyC ss ty <*> indexifyC (n:ss) y
 indexifyS ss (SPi s t x) = TPi <$> indexifyS ss t <*> indexifyS (s:ss) x
 indexifyS ss (SRefine x s p) = TRefine <$> indexifyS ss x <*> indexifyS (s:ss) p
 indexifyS ss (SSigma s t x) = TSigma <$> indexifyS ss t <*> indexifyS (s:ss) x
